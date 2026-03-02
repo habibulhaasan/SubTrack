@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Friends ERA | Interactive System Architecture</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+        
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #fafaf9;
+            color: #1c1917;
+        }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f5f5f4;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .capsule-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+    </style>
+</head>
+<body class="antialiased selection:bg-indigo-100 selection:text-indigo-900">
+
+    <!-- Navigation -->
+    <nav class="fixed top-0 w-full z-50 glass-panel border-b border-stone-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center gap-2">
+                    <img src="/logo.png" alt="Friends ERA Logo" class="w-8 h-8 object-contain" 
+                         onerror="this.src='https://ui-avatars.com/api/?name=FE&background=4f46e5&color=fff'"/>
+                    <span class="font-bold text-lg tracking-tight text-slate-800">Friends ERA <span class="text-xs text-stone-500 font-medium ml-1">v1.0 Docs</span></span>
+                </div>
+                
+                <div class="flex items-center gap-6">
+                    <div class="hidden md:flex space-x-8 text-sm font-medium text-stone-600">
+                        <!-- Added Home Link -->
+                        <a href="/" class="hover:text-indigo-600 transition-colors font-bold">Home</a>
+                        <a href="#features" class="hover:text-indigo-600 transition-colors">Ecosystem</a>
+                        <a href="#simulation" class="hover:text-indigo-600 transition-colors">Financial Sim</a>
+                    </div>
+                    <!-- Language Toggle -->
+                    <a href="features_bn.html" class="px-3 py-1 bg-stone-100 text-stone-600 rounded-lg text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all">
+                        BN
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="pt-32 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto text-center">
+        <div class="inline-block px-4 py-1.5 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold uppercase tracking-widest mb-6 border border-indigo-100">
+            Association Management System
+        </div>
+        <h1 class="text-5xl md:text-6xl font-black text-slate-900 tracking-tight mb-6 leading-tight">
+            Accountability through <br> <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-emerald-500">Technology</span>
+        </h1>
+        <p class="max-w-2xl mx-auto text-lg text-stone-600 leading-relaxed mb-10">
+            A professional financial ecosystem ensuring 100% transparency through real-time expense tracking, automated penalty collection, and secure capital deployment.
+        </p>
+        <div class="flex justify-center gap-4">
+            <a href="#simulation" class="px-8 py-4 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200">
+                Simulate Ledger
+            </a>
+            <a href="#features" class="px-8 py-4 bg-white text-slate-900 border border-stone-200 rounded-xl font-bold hover:bg-stone-50 transition-all">
+                Explore Features
+            </a>
+        </div>
+    </header>
+
+    <!-- Ecosystem Explorer -->
+    <section id="features" class="py-20 bg-white border-y border-stone-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl font-bold text-slate-900 mb-4">The Dual-Core Ecosystem</h2>
+                <p class="text-stone-600 max-w-2xl mx-auto">
+                    Friends ERA strictly bifurcates the experience into two distinct roles to ensure security and ease of use.
+                </p>
+            </div>
+
+            <div class="flex justify-center mb-12">
+                <div class="bg-stone-100 p-1 rounded-xl inline-flex">
+                    <button onclick="switchRole('member')" id="btn-member" class="px-6 py-2.5 rounded-lg text-sm font-bold transition-all bg-white text-slate-900 shadow-sm">
+                        User / Member
+                    </button>
+                    <button onclick="switchRole('admin')" id="btn-admin" class="px-6 py-2.5 rounded-lg text-sm font-bold text-stone-500 hover:text-slate-900 transition-all">
+                        Administrator
+                    </button>
+                </div>
+            </div>
+
+            <div id="view-member" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in">
+                <div class="p-6 rounded-2xl bg-stone-50 border border-stone-100 hover:border-indigo-200 transition-colors group">
+                    <div class="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center mb-4 text-xl">👤</div>
+                    <h3 class="font-bold text-slate-900 mb-2">High-Performance Profile</h3>
+                    <p class="text-sm text-stone-600 leading-relaxed">Self-service updates for personal data. Critical IDs are locked.</p>
+                </div>
+                <div class="p-6 rounded-2xl bg-stone-50 border border-stone-100 hover:border-indigo-200 transition-colors group">
+                    <div class="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center mb-4 text-xl">💸</div>
+                    <h3 class="font-bold text-slate-900 mb-2">Transparency Ledger</h3>
+                    <p class="text-sm text-stone-600 leading-relaxed">Read-only access to all operational costs to build trust.</p>
+                </div>
+                <div class="p-6 rounded-2xl bg-stone-50 border border-stone-100 hover:border-indigo-200 transition-colors group">
+                    <div class="w-10 h-10 bg-amber-100 text-amber-600 rounded-lg flex items-center justify-center mb-4 text-xl">💳</div>
+                    <h3 class="font-bold text-slate-900 mb-2">Payment Portal</h3>
+                    <p class="text-sm text-stone-600 leading-relaxed">Direct submission of monthly installments with tracking.</p>
+                </div>
+                <div class="p-6 rounded-2xl bg-stone-50 border border-stone-100 hover:border-indigo-200 transition-colors group">
+                    <div class="w-10 h-10 bg-rose-100 text-rose-600 rounded-lg flex items-center justify-center mb-4 text-xl">🔔</div>
+                    <h3 class="font-bold text-slate-900 mb-2">Smart Notifications</h3>
+                    <p class="text-sm text-stone-600 leading-relaxed">Interactive alerts with visual priority and clear status.</p>
+                </div>
+            </div>
+
+            <div id="view-admin" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in">
+                <div class="p-6 rounded-2xl bg-slate-900 text-white border border-slate-700 shadow-xl">
+                    <div class="w-10 h-10 bg-slate-700 text-indigo-400 rounded-lg flex items-center justify-center mb-4 text-xl">📈</div>
+                    <h3 class="font-bold mb-2">Net Worth Engine</h3>
+                    <p class="text-sm text-slate-300 leading-relaxed">Real-time calculation of Global Net Worth.</p>
+                </div>
+                <div class="p-6 rounded-2xl bg-white border border-stone-200 hover:border-rose-200 transition-colors">
+                    <div class="w-10 h-10 bg-rose-50 text-rose-600 rounded-lg flex items-center justify-center mb-4 text-xl">⚖️</div>
+                    <h3 class="font-bold text-slate-900 mb-2">Penalty Ledger</h3>
+                    <p class="text-sm text-stone-600 leading-relaxed">Automated tracking of late fees revenue streams.</p>
+                </div>
+                <div class="p-6 rounded-2xl bg-white border border-stone-200 hover:border-indigo-200 transition-colors">
+                    <div class="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center mb-4 text-xl">🚀</div>
+                    <h3 class="font-bold text-slate-900 mb-2">Capital Deployment</h3>
+                    <p class="text-sm text-stone-600 leading-relaxed">Manage active projects and realize profits.</p>
+                </div>
+                <div class="p-6 rounded-2xl bg-white border border-stone-200 hover:border-indigo-200 transition-colors">
+                    <div class="w-10 h-10 bg-sky-50 text-sky-600 rounded-lg flex items-center justify-center mb-4 text-xl">📢</div>
+                    <h3 class="font-bold text-slate-900 mb-2">Broadcast Center</h3>
+                    <p class="text-sm text-stone-600 leading-relaxed">Send customized announcements to all members.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Simulator -->
+    <section id="simulation" class="py-20 bg-stone-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+                <div class="lg:col-span-5 space-y-8">
+                    <div>
+                        <h2 class="text-3xl font-black text-slate-900 tracking-tight mb-4">Financial Engine Simulator</h2>
+                        <p class="text-stone-600 text-sm">Adjust the sliders to see how revenue streams affect Net Worth.</p>
+                    </div>
+
+                    <div class="p-4 bg-white rounded-xl border border-stone-200 font-mono text-xs text-stone-500">
+                        Net Worth = Installments + Penalties + Profits - Expenses
+                    </div>
+
+                    <div class="space-y-6">
+                        <div>
+                            <div class="flex justify-between text-xs font-bold uppercase text-stone-500 mb-2">
+                                <span>Total Installments</span>
+                                <span class="text-indigo-600" id="val-installments">৳500,000</span>
+                            </div>
+                            <input type="range" min="100000" max="1000000" value="500000" step="10000" class="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-indigo-600" id="in-installments">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs font-bold uppercase text-stone-500 mb-2">
+                                <span>Realized Profits</span>
+                                <span class="text-emerald-600" id="val-profits">৳50,000</span>
+                            </div>
+                            <input type="range" min="0" max="200000" value="50000" step="5000" class="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-emerald-500" id="in-profits">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs font-bold uppercase text-stone-500 mb-2">
+                                <span>Penalties Collected</span>
+                                <span class="text-amber-600" id="val-penalties">৳5,000</span>
+                            </div>
+                            <input type="range" min="0" max="20000" value="5000" step="100" class="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-amber-500" id="in-penalties">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs font-bold uppercase text-stone-500 mb-2">
+                                <span>Operational Expenses</span>
+                                <span class="text-rose-600" id="val-expenses">৳25,000</span>
+                            </div>
+                            <input type="range" min="0" max="100000" value="25000" step="1000" class="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-rose-500" id="in-expenses">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-7 bg-white p-8 rounded-3xl shadow-xl border border-stone-100">
+                    <div class="grid grid-cols-2 gap-4 mb-8">
+                        <div class="p-4 bg-slate-900 rounded-2xl text-white">
+                            <p class="text-[10px] uppercase font-bold tracking-widest text-slate-400 mb-1">Calculated Net Worth</p>
+                            <p class="text-3xl font-black" id="disp-networth">৳530,000</p>
+                        </div>
+                        <div class="p-4 bg-indigo-50 rounded-2xl text-indigo-900">
+                            <p class="text-[10px] uppercase font-bold tracking-widest text-indigo-400 mb-1">Profit Ratio</p>
+                            <p class="text-3xl font-black" id="disp-ratio">10.4%</p>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="financeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-stone-200 pt-16 pb-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <img src="/logo.png" alt="Logo" class="w-10 h-10 grayscale opacity-30 mb-6 hover:grayscale-0 hover:opacity-100 transition-all cursor-crosshair mx-auto" 
+                 onerror="this.src='https://ui-avatars.com/api/?name=FE&background=0f172a&color=fff'"/>
+            <div class="flex flex-col items-center space-y-3 mb-8">
+                <div class="flex items-center gap-2.5 bg-slate-50 px-4 py-1.5 rounded-full border border-slate-100">
+                    <span class="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Crafted with</span>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-500 capsule-pulse">
+                        <path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z" />
+                        <path d="m8.5 8.5 7 7" />
+                    </svg>
+                    <span class="text-[9px] font-bold text-slate-500 uppercase tracking-wider">by a Pharmacist</span>
+                </div>
+                <a href="https://haasan.vercel.app/" target="_blank" rel="noopener noreferrer" class="group flex flex-col items-center">
+                    <span class="text-lg font-black tracking-[0.2em] text-slate-900 uppercase group-hover:text-indigo-600 transition-all duration-300">HASAN</span>
+                    <span class="text-[8px] font-black text-slate-400 uppercase tracking-[0.3em]">Developer Portfolio</span>
+                </a>
+            </div>
+            <p class="text-stone-300 text-[9px] uppercase font-bold tracking-widest">&copy; 2026 Friends ERA. All Rights Reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        function switchRole(role) {
+            const memberBtn = document.getElementById('btn-member');
+            const adminBtn = document.getElementById('btn-admin');
+            const memberView = document.getElementById('view-member');
+            const adminView = document.getElementById('view-admin');
+
+            if (role === 'member') {
+                memberBtn.classList.add('bg-white', 'text-slate-900', 'shadow-sm');
+                memberBtn.classList.remove('text-stone-500');
+                adminBtn.classList.remove('bg-white', 'text-slate-900', 'shadow-sm');
+                adminBtn.classList.add('text-stone-500');
+                memberView.classList.remove('hidden');
+                adminView.classList.add('hidden');
+            } else {
+                adminBtn.classList.add('bg-white', 'text-slate-900', 'shadow-sm');
+                adminBtn.classList.remove('text-stone-500');
+                memberBtn.classList.remove('bg-white', 'text-slate-900', 'shadow-sm');
+                memberBtn.classList.add('text-stone-500');
+                adminView.classList.remove('hidden');
+                memberView.classList.add('hidden');
+            }
+        }
+
+        const inInstallments = document.getElementById('in-installments');
+        const inProfits = document.getElementById('in-profits');
+        const inPenalties = document.getElementById('in-penalties');
+        const inExpenses = document.getElementById('in-expenses');
+        const lInstallments = document.getElementById('val-installments');
+        const lProfits = document.getElementById('val-profits');
+        const lPenalties = document.getElementById('val-penalties');
+        const lExpenses = document.getElementById('val-expenses');
+        const outNetWorth = document.getElementById('disp-networth');
+        const outRatio = document.getElementById('disp-ratio');
+        const ctx = document.getElementById('financeChart').getContext('2d');
+        let financeChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Revenue Streams', 'Expenditure'],
+                datasets: [
+                    { label: 'Installments', data: [500000, 0], backgroundColor: '#4f46e5', stack: 'Stack 0' },
+                    { label: 'Profits', data: [50000, 0], backgroundColor: '#10b981', stack: 'Stack 0' },
+                    { label: 'Penalties', data: [5000, 0], backgroundColor: '#f59e0b', stack: 'Stack 0' },
+                    { label: 'Expenses', data: [0, 25000], backgroundColor: '#e11d48', stack: 'Stack 1' }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { stacked: true, beginAtZero: true } } }
+        });
+
+        function updateSimulation() {
+            const vInst = parseInt(inInstallments.value);
+            const vProf = parseInt(inProfits.value);
+            const vPen = parseInt(inPenalties.value);
+            const vExp = parseInt(inExpenses.value);
+            lInstallments.innerText = `৳${vInst.toLocaleString()}`;
+            lProfits.innerText = `৳${vProf.toLocaleString()}`;
+            lPenalties.innerText = `৳${vPen.toLocaleString()}`;
+            lExpenses.innerText = `৳${vExp.toLocaleString()}`;
+            const netWorth = vInst + vProf + vPen - vExp;
+            outNetWorth.innerText = `৳${netWorth.toLocaleString()}`;
+            outRatio.innerText = `${((vProf / vInst) * 100).toFixed(1)}%`;
+            financeChart.data.datasets[0].data[0] = vInst;
+            financeChart.data.datasets[1].data[0] = vProf;
+            financeChart.data.datasets[2].data[0] = vPen;
+            financeChart.data.datasets[3].data[1] = vExp;
+            financeChart.update();
+        }
+
+        [inInstallments, inProfits, inPenalties, inExpenses].forEach(input => {
+            input.addEventListener('input', updateSimulation);
+        });
+        updateSimulation();
+    </script>
+</body>
+</html>

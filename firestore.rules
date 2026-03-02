@@ -1,0 +1,161 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin';
+    }
+
+    function isOrgAdmin(orgId) {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isApprovedMember(orgId) {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.approved == true;
+    }
+
+    function isOwnDoc(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+
+    // ── Users collection ─────────────────────────────────────────────────────
+
+    match /users/{userId} {
+      // Anyone signed in can read their own doc; superadmin can read all
+      allow read: if isOwnDoc(userId) || isSuperAdmin();
+
+      // User can write their own doc; superadmin can write any
+      allow write: if isOwnDoc(userId) || isSuperAdmin();
+
+      // Allow new user creation on registration (their own doc)
+      allow create: if isOwnDoc(userId);
+    }
+
+
+    // ── Organizations ────────────────────────────────────────────────────────
+
+    match /organizations/{orgId} {
+      // Approved members and admins can read their org
+      allow read: if isApprovedMember(orgId) || isOrgAdmin(orgId) || isSuperAdmin();
+
+      // Only org admin or superadmin can update org settings/status
+      allow update: if isOrgAdmin(orgId) || isSuperAdmin();
+
+      // Any authenticated user can create an org (they become admin in the subcollection)
+      allow create: if isSignedIn();
+
+      // Only superadmin can delete an org
+      allow delete: if isSuperAdmin();
+
+
+      // ── Members subcollection ─────────────────────────────────────────────
+
+      match /members/{memberId} {
+        // Org admin and superadmin can read all members
+        // Members can read their own membership doc
+        allow read: if isOwnDoc(memberId) || isOrgAdmin(orgId) || isSuperAdmin();
+
+        // Org admin or superadmin can write any member doc (approve, change role, set ID, set amount)
+        allow write: if isOrgAdmin(orgId) || isSuperAdmin();
+
+        // Any signed-in user can create their own membership (joining via invite)
+        allow create: if isOwnDoc(memberId);
+
+        // Members can update their own doc (e.g. profile sync) but not role/approved
+        allow update: if isOwnDoc(memberId)
+          && !('role' in request.resource.data)
+          && !('approved' in request.resource.data);
+      }
+
+
+      // ── Investments (installment payments) ───────────────────────────────
+
+      match /investments/{investmentId} {
+        // Members can read their own payments; admins can read all
+        allow read: if isApprovedMember(orgId) || isOrgAdmin(orgId) || isSuperAdmin();
+
+        // Approved members can submit new payments (create only)
+        allow create: if isApprovedMember(orgId);
+
+        // Only org admin or superadmin can update/verify/reject payments
+        allow update: if isOrgAdmin(orgId) || isSuperAdmin();
+
+        allow delete: if isOrgAdmin(orgId) || isSuperAdmin();
+      }
+
+
+      // ── Expenses ─────────────────────────────────────────────────────────
+
+      match /expenses/{expenseId} {
+        // Approved members can read (transparency); admins can write
+        allow read: if isApprovedMember(orgId) || isOrgAdmin(orgId) || isSuperAdmin();
+        allow write: if isOrgAdmin(orgId) || isSuperAdmin();
+      }
+
+
+      // ── Deployments (investments made by the org) ─────────────────────────
+
+      match /deployments/{deploymentId} {
+        // Approved members can read; only admins can write
+        allow read: if isApprovedMember(orgId) || isOrgAdmin(orgId) || isSuperAdmin();
+        allow write: if isOrgAdmin(orgId) || isSuperAdmin();
+      }
+
+
+      // ── Notifications ─────────────────────────────────────────────────────
+
+      match /notifications/{notifId} {
+        // Users can read and delete their own notifications
+        allow read, delete: if isSignedIn() &&
+          resource.data.userId == request.auth.uid;
+
+        // Users can mark their own notifications as read (update)
+        allow update: if isSignedIn() &&
+          resource.data.userId == request.auth.uid;
+
+        // Org admins can create notifications (to send to members)
+        allow create: if isOrgAdmin(orgId) || isSuperAdmin();
+
+        // Admins can also delete notifications
+        allow delete: if isOrgAdmin(orgId) || isSuperAdmin();
+      }
+
+    } // end organizations/{orgId}
+
+
+    // ── Invite Links ─────────────────────────────────────────────────────────
+
+    match /invites/{inviteId} {
+      // Anyone can read an invite (to preview the org before joining)
+      allow read: if true;
+
+      // Only org admins can create/delete invites for their org
+      allow create: if isSignedIn() && isOrgAdmin(request.resource.data.orgId);
+      allow delete: if isSignedIn() && isOrgAdmin(resource.data.orgId);
+
+      // No updates to invites (immutable — delete and recreate)
+      allow update: if false;
+    }
+
+
+    // ── Platform settings (superadmin only) ───────────────────────────────
+
+    match /platform/{docId} {
+      allow read: if isSignedIn();           // all signed-in users can read (e.g. check requireOrgApproval)
+      allow write: if isSuperAdmin();
+    }
+
+
+  } // end match /databases
+}

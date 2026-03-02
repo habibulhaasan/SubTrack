@@ -1,0 +1,493 @@
+'use client';
+import { useState, useEffect } from 'react';
+import { db } from '@/lib/firebase';
+import { doc, getDoc, onSnapshot, updateDoc, collection, addDoc, setDoc, getDocs, deleteDoc, serverTimestamp, query, where } from 'firebase/firestore';
+import { useAuth } from '@/context/AuthContext';
+
+const PAYMENT_METHODS = ['bKash','Nagad','Rocket','Bank Transfer','Cash'];
+
+// Toggle defined OUTSIDE the page component — prevents input deselect bug
+function Toggle({ label, sub, value, onChange }) {
+  return (
+    <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', padding:'12px 0', borderBottom:'1px solid #f1f5f9', gap:12 }}>
+      <div>
+        <div style={{ fontSize:14, color:'#0f172a', fontWeight:500 }}>{label}</div>
+        {sub && <div style={{ fontSize:12, color:'#64748b', marginTop:2 }}>{sub}</div>}
+      </div>
+      <button type="button" onClick={onChange}
+        style={{ width:44, height:24, borderRadius:99, border:'none', cursor:'pointer', background: value ? '#2563eb' : '#e2e8f0', position:'relative', flexShrink:0, marginTop:2 }}>
+        <span style={{ position:'absolute', top:2, left: value ? 20 : 2, width:20, height:20, borderRadius:'50%', background:'#fff', boxShadow:'0 1px 3px rgba(0,0,0,0.15)', transition:'left 0.2s' }} />
+      </button>
+    </div>
+  );
+}
+
+export default function AdminSettings() {
+  const { user, userData, orgData } = useAuth();
+  const [tab, setTab]         = useState('rules');
+  const [settings, setSettings] = useState({});
+  const [saving, setSaving]   = useState(false);
+  const [saved, setSaved]     = useState(false);
+  const [members, setMembers] = useState([]);
+  const [invites, setInvites] = useState([]);
+  const [inviteDays, setInviteDays] = useState(7);
+
+  // Special subscription form state
+  const [specialSubs, setSpecialSubs]   = useState([]);
+  const [subForm, setSubForm]           = useState({ title:'', description:'', amount:'', deadline:'', targetAll: true });
+  const [subSaving, setSubSaving]       = useState(false);
+  const [subSaved, setSubSaved]         = useState(false);
+
+  const orgId = userData?.activeOrgId;
+
+  useEffect(() => {
+    if (!orgId) return;
+    const unsub = onSnapshot(doc(db, 'organizations', orgId), snap => {
+      if (snap.exists()) setSettings(snap.data().settings || {});
+    });
+    // Load members merged with user profiles
+    getDocs(collection(db, 'organizations', orgId, 'members')).then(async snap => {
+      const memberDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const withNames = await Promise.all(memberDocs.map(async m => {
+        try {
+          const uSnap = await getDoc(doc(db, 'users', m.id));
+          return uSnap.exists() ? { ...uSnap.data(), ...m } : m;
+        } catch { return m; }
+      }));
+      setMembers(withNames);
+    });
+    getDocs(query(collection(db, 'invites'), where('orgId', '==', orgId)))
+      .then(snap => setInvites(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    // Load special subscriptions
+    const unsubSubs = onSnapshot(
+      collection(db, 'organizations', orgId, 'specialSubscriptions'),
+      snap => setSpecialSubs(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0)))
+    );
+    return () => { unsub(); unsubSubs(); };
+  }, [orgId]);
+
+  const [logoPreview, setLogoPreview] = useState(null);
+
+  const handleLogo = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const canvas = document.createElement('canvas');
+    const img    = new Image();
+    const reader = new FileReader();
+    reader.onload = ev => {
+      img.onload = () => {
+        const size = 200;
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const min = Math.min(img.width, img.height);
+        ctx.drawImage(img, (img.width-min)/2, (img.height-min)/2, min, min, 0, 0, size, size);
+        setLogoPreview(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const saveLogo = async () => {
+    if (!logoPreview || !orgId) return;
+    try {
+      await updateDoc(doc(db, 'organizations', orgId), { logoURL: logoPreview });
+      setSaved(true); setTimeout(() => setSaved(false), 2000);
+    } catch (e) { alert(e.message); }
+  };
+
+  const set = (k, v) => setSettings(p => ({ ...p, [k]: v }));
+
+  const saveRules = async () => {
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, 'organizations', orgId), { settings });
+      setSaved(true); setTimeout(() => setSaved(false), 3000);
+    } catch (e) { alert(e.message); }
+    setSaving(false);
+  };
+
+  const saveMemberAmount = async (memberId, amount) => {
+    try {
+      await updateDoc(doc(db, 'organizations', orgId, 'members', memberId), { customAmount: Number(amount) || 0 });
+    } catch (e) { console.error(e); }
+  };
+
+  const toggleMethod = (method) => {
+    const current = settings.paymentMethods || PAYMENT_METHODS;
+    const updated  = current.includes(method)
+      ? current.filter(m => m !== method)
+      : [...current, method];
+    set('paymentMethods', updated);
+  };
+
+  const createInvite = async () => {
+    if (!orgId || !orgData) return;
+    try {
+      const exp = new Date();
+      exp.setDate(exp.getDate() + Number(inviteDays));
+      const slug    = orgData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30);
+      const suffix  = Math.random().toString(36).slice(2, 7);
+      const inviteId = `${slug}-${suffix}`;
+      const inviteData = {
+        orgId,
+        orgName:        orgData.name,
+        orgType:        orgData.type,
+        orgDescription: orgData.description || '',
+        orgSettings:    { baseAmount: orgData.settings?.baseAmount, dueDate: orgData.settings?.dueDate },
+        expiresAt:      { seconds: Math.floor(exp.getTime() / 1000) },
+        createdAt:      serverTimestamp(),
+        createdBy:      user.uid,
+        useCount:       0,
+      };
+      await setDoc(doc(db, 'invites', inviteId), inviteData);
+      setInvites(p => [...p, { id: inviteId, ...inviteData }]);
+    } catch (e) { alert('Error creating invite: ' + e.message); }
+  };
+
+  const delInvite = async (id) => {
+    try {
+      await deleteDoc(doc(db, 'invites', id));
+      setInvites(p => p.filter(i => i.id !== id));
+    } catch (e) { alert(e.message); }
+  };
+
+  // Special subscription: create and notify all members
+  const createSpecialSub = async (e) => {
+    e.preventDefault();
+    if (!subForm.title || !subForm.amount || !subForm.deadline) { alert('Title, amount, and deadline are required.'); return; }
+    setSubSaving(true);
+    try {
+      const docRef = await addDoc(collection(db, 'organizations', orgId, 'specialSubscriptions'), {
+        title:       subForm.title,
+        description: subForm.description,
+        amount:      Number(subForm.amount),
+        deadline:    subForm.deadline,
+        active:      true,
+        createdAt:   serverTimestamp(),
+        createdBy:   user.uid,
+      });
+      // Notify all approved members
+      const mSnap = await getDocs(collection(db, 'organizations', orgId, 'members'));
+      const approved = mSnap.docs.filter(d => d.data().approved);
+      const deadline = new Date(subForm.deadline).toLocaleDateString('en-GB');
+      const msg = `📢 Special subscription: "${subForm.title}" — ৳${Number(subForm.amount).toLocaleString()} due by ${deadline}. ${subForm.description ? subForm.description : ''}`;
+      await Promise.all(approved.map(d =>
+        addDoc(collection(db, 'organizations', orgId, 'notifications'), {
+          userId: d.id, message: msg.trim(), read: false, createdAt: serverTimestamp(),
+        })
+      ));
+      setSubForm({ title:'', description:'', amount:'', deadline:'', targetAll: true });
+      setSubSaved(true); setTimeout(() => setSubSaved(false), 3000);
+    } catch (e) { alert(e.message); }
+    setSubSaving(false);
+  };
+
+  const toggleSpecialSub = async (sub) => {
+    try {
+      await updateDoc(doc(db, 'organizations', orgId, 'specialSubscriptions', sub.id), { active: !sub.active });
+    } catch (e) { alert(e.message); }
+  };
+
+  const deleteSpecialSub = async (id) => {
+    if (!confirm('Delete this special subscription?')) return;
+    try { await deleteDoc(doc(db, 'organizations', orgId, 'specialSubscriptions', id)); }
+    catch (e) { alert(e.message); }
+  };
+
+  const TABS = [['rules','Rules'],['payments','Payment Methods'],['subscriptions','Subscriptions'],['special','Special Subs'],['invites','Invite Links']];
+
+  return (
+    <div className="page-wrap animate-fade">
+      <div className="page-header">
+        <div className="page-title">Organization Settings</div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display:'flex', gap:4, borderBottom:'2px solid #e2e8f0', marginBottom:24, overflowX:'auto' }}>
+        {TABS.map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)}
+            style={{ padding:'10px 18px', background:'none', border:'none', whiteSpace:'nowrap',
+              borderBottom: tab===id ? '2px solid #2563eb' : '2px solid transparent',
+              fontWeight: tab===id ? 600 : 400,
+              color: tab===id ? '#2563eb' : '#64748b',
+              cursor:'pointer', fontSize:14, marginBottom:-2 }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Rules ── */}
+      {tab === 'rules' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          {saved && <div className="alert alert-success">Settings saved.</div>}
+
+          {/* Logo section */}
+          <div className="card">
+            <div style={{ fontWeight:600, fontSize:14, color:'#0f172a', marginBottom:12 }}>Organization Logo</div>
+            <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+              <div style={{ width:72, height:72, borderRadius:14, background:'#eff6ff', border:'2px dashed #bfdbfe', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0 }}>
+                {(logoPreview || orgData?.logoURL)
+                  ? <img src={logoPreview || orgData?.logoURL} style={{ width:'100%', height:'100%', objectFit:'cover' }} alt="" />
+                  : <span style={{ fontSize:28, color:'#93c5fd' }}>🏢</span>}
+              </div>
+              <div>
+                <label className="btn-ghost" style={{ cursor:'pointer', display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', fontSize:13, marginBottom:8 }}>
+                  {(logoPreview || orgData?.logoURL) ? 'Change Logo' : 'Upload Logo'}
+                  <input type="file" accept="image/*" onChange={handleLogo} style={{ display:'none' }} />
+                </label>
+                {logoPreview && (
+                  <button onClick={saveLogo} className="btn-primary" style={{ padding:'8px 16px', fontSize:13, marginLeft:8 }}>
+                    Save Logo
+                  </button>
+                )}
+                <p style={{ fontSize:11, color:'#94a3b8', margin:0 }}>Square image recommended</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 20px' }}>
+              {[
+                ['baseAmount','Monthly Amount','number'],
+                ['dueDate','Due Day (of month)','number'],
+                ['penalty','Late Fee Amount','number'],
+                ['startDate','Start Date','date'],
+              ].map(([k, l, t]) => (
+                <div key={k} className="form-group">
+                  <label className="form-label">{l}</label>
+                  <input type={t} value={settings[k] || ''} onChange={e => set(k, t === 'number' ? Number(e.target.value) : e.target.value)} />
+                </div>
+              ))}
+            </div>
+            <Toggle label="Enable Monthly Installments" value={settings.monthlyEnabled !== false} onChange={() => set('monthlyEnabled', settings.monthlyEnabled === false ? true : false)} sub="When OFF, members won't see monthly payment options" />
+            <Toggle label="Enable Late Fees"           value={!!settings.lateFeeEnabled}  onChange={() => set('lateFeeEnabled', !settings.lateFeeEnabled)}  sub="Charge penalty for payments after the due date" />
+            <Toggle label="Uniform Subscription"      value={!!settings.uniformAmount}    onChange={() => set('uniformAmount', !settings.uniformAmount)}    sub="All members pay the same base amount" />
+            <Toggle label="Show Total Fund to Members" value={settings.showFund !== false} onChange={() => set('showFund', settings.showFund === false ? true : false)} sub="Members can see the total collected amount" />
+            <Toggle label="Auto-assign Member IDs"    value={!!settings.autoMemberId}     onChange={() => set('autoMemberId', !settings.autoMemberId)}     sub="Automatically assign sequential IDs (e.g. M-001) when approving members" />
+            <button onClick={saveRules} disabled={saving} className="btn-primary" style={{ marginTop:20, padding:'10px 28px' }}>
+              {saving ? 'Saving…' : 'Save Settings'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Payment Methods ── */}
+      {tab === 'payments' && (
+        <div style={{ display:'grid', gap:16 }}>
+          <div className="card">
+            <div style={{ fontWeight:600, fontSize:14, color:'#0f172a', marginBottom:4 }}>Accepted Payment Methods</div>
+            <p style={{ fontSize:13, color:'#64748b', marginBottom:16 }}>Enable methods, set account details, and configure gateway fees.</p>
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              {PAYMENT_METHODS.map(m => {
+                const enabled    = (settings.paymentMethods || PAYMENT_METHODS).includes(m);
+                const account    = settings.accountDetails?.[m] || '';
+                const feeEnabled = settings.gatewayFees?.[m]?.enabled ?? false;
+                const feeRate    = settings.gatewayFees?.[m]?.rate ?? '';
+                const setAccount = v => set('accountDetails', { ...(settings.accountDetails||{}), [m]: v });
+                const setFee     = (field, val) => set('gatewayFees', {
+                  ...(settings.gatewayFees||{}),
+                  [m]: { ...(settings.gatewayFees?.[m]||{}), [field]: val }
+                });
+                return (
+                  <div key={m} style={{ border:`1.5px solid ${enabled?'#bfdbfe':'#e2e8f0'}`, borderRadius:10, overflow:'hidden', background: enabled?'#f8faff':'#fafafa' }}>
+                    <label style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', cursor:'pointer', borderBottom: enabled?'1px solid #e2e8f0':'none' }}>
+                      <input type="checkbox" checked={enabled} onChange={() => toggleMethod(m)} style={{ width:16, height:16, accentColor:'#2563eb', flexShrink:0 }} />
+                      <span style={{ fontWeight:600, fontSize:14, color: enabled?'#1d4ed8':'#475569', flex:1 }}>{m}</span>
+                      {enabled && <span className="badge badge-green">Active</span>}
+                    </label>
+                    {enabled && (
+                      <div style={{ padding:'14px 16px', display:'grid', gap:12 }}>
+                        {m !== 'Cash' && (
+                          <div>
+                            <label className="form-label">Account / Number to show members</label>
+                            <input value={account} onChange={e=>setAccount(e.target.value)}
+                              placeholder={m==='Bank Transfer'?'Bank name, account no, routing…':`${m} number`} />
+                          </div>
+                        )}
+                        {m !== 'Cash' && (
+                          <div style={{ background:'#f8fafc', borderRadius:8, padding:'12px 14px', border:'1px solid #e2e8f0' }}>
+                            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: feeEnabled?12:0 }}>
+                              <div>
+                                <div style={{ fontSize:13, fontWeight:600, color:'#0f172a' }}>Gateway Fee</div>
+                                <div style={{ fontSize:11, color:'#94a3b8', marginTop:1 }}>Automatically add fee to member payments</div>
+                              </div>
+                              <button type="button" onClick={()=>setFee('enabled',!feeEnabled)}
+                                style={{ width:40, height:22, borderRadius:99, border:'none', cursor:'pointer', background:feeEnabled?'#2563eb':'#e2e8f0', position:'relative', flexShrink:0 }}>
+                                <span style={{ position:'absolute', top:2, left:feeEnabled?18:2, width:18, height:18, borderRadius:'50%', background:'#fff', boxShadow:'0 1px 2px rgba(0,0,0,0.15)', transition:'left 0.18s' }} />
+                              </button>
+                            </div>
+                            {feeEnabled && (
+                              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                                <input type="number" min="0" max="100" step="0.01" value={feeRate}
+                                  onChange={e=>setFee('rate', e.target.value)}
+                                  placeholder="e.g. 1.85" style={{ flex:1 }} />
+                                <span style={{ fontSize:13, color:'#64748b', whiteSpace:'nowrap' }}>% of total</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <button onClick={saveRules} disabled={saving} className="btn-primary" style={{ marginTop:20, padding:'10px 28px' }}>
+              {saving ? 'Saving…' : 'Save Payment Settings'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Subscriptions (custom amounts per member) ── */}
+      {tab === 'subscriptions' && (
+        <div className="card">
+          <div className="alert alert-info" style={{ fontSize:13, marginBottom:16 }}>
+            {settings.uniformAmount
+              ? 'Uniform mode is ON — all members use the base amount. Turn it off in Rules to enable custom amounts.'
+              : 'Custom amounts per member are active. Edit inline and click away to save.'}
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+            {members.filter(m => m.approved).map(m => (
+              <div key={m.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom:'1px solid #f1f5f9' }}>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontWeight:500, fontSize:13, color:'#0f172a' }}>{m.nameEnglish || m.id.slice(0,10)}</div>
+                  <div style={{ fontSize:11, color:'#94a3b8' }}>{m.idNo || 'No ID'}</div>
+                </div>
+                <div style={{ fontSize:12, color:'#64748b' }}>Custom amount:</div>
+                <input
+                  type="number"
+                  disabled={!!settings.uniformAmount}
+                  defaultValue={m.customAmount ?? settings.baseAmount ?? 0}
+                  onBlur={e => !settings.uniformAmount && saveMemberAmount(m.id, e.target.value)}
+                  style={{ width:110, textAlign:'right', opacity: settings.uniformAmount ? 0.5 : 1 }}
+                />
+              </div>
+            ))}
+            {members.filter(m => m.approved).length === 0 && (
+              <p style={{ color:'#94a3b8', fontSize:13, textAlign:'center', padding:24 }}>No approved members yet.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Special Subscriptions ── */}
+      {tab === 'special' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          {subSaved && <div className="alert alert-success">Special subscription created and members notified!</div>}
+
+          {/* Create form */}
+          <div className="card">
+            <div style={{ fontWeight:600, fontSize:14, color:'#0f172a', marginBottom:4 }}>Create Special Subscription</div>
+            <p style={{ fontSize:13, color:'#64748b', marginBottom:16 }}>For one-time fundraising goals with a deadline. Members will be notified and can pay via the installment page.</p>
+            <form onSubmit={createSpecialSub}>
+              <div className="form-group">
+                <label className="form-label">Title / Purpose *</label>
+                <input value={subForm.title} onChange={e => setSubForm(p=>({...p, title:e.target.value}))} placeholder="e.g. Eid Celebration Fund" required />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Description</label>
+                <textarea rows={2} value={subForm.description} onChange={e => setSubForm(p=>({...p, description:e.target.value}))} placeholder="Explain what this fund is for…" style={{ resize:'vertical' }} />
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 16px' }}>
+                <div className="form-group">
+                  <label className="form-label">Amount per Member (৳) *</label>
+                  <input type="number" min="1" value={subForm.amount} onChange={e => setSubForm(p=>({...p, amount:e.target.value}))} placeholder="0" required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Deadline *</label>
+                  <input type="date" value={subForm.deadline} onChange={e => setSubForm(p=>({...p, deadline:e.target.value}))} required />
+                </div>
+              </div>
+              <button type="submit" disabled={subSaving} className="btn-primary" style={{ padding:'10px 28px' }}>
+                {subSaving ? 'Creating…' : 'Create & Notify Members'}
+              </button>
+            </form>
+          </div>
+
+          {/* Existing special subscriptions */}
+          {specialSubs.length > 0 && (
+            <div className="card">
+              <div style={{ fontWeight:600, fontSize:14, color:'#0f172a', marginBottom:12 }}>Active Special Subscriptions</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                {specialSubs.map(sub => {
+                  const deadline = sub.deadline ? new Date(sub.deadline) : null;
+                  const expired  = deadline && deadline < new Date();
+                  return (
+                    <div key={sub.id} style={{ padding:'14px 16px', border:`1.5px solid ${sub.active?'#bfdbfe':'#e2e8f0'}`, borderRadius:10, background: sub.active?'#f8faff':'#fafafa' }}>
+                      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontWeight:600, fontSize:14, color:'#0f172a' }}>{sub.title}</div>
+                          {sub.description && <div style={{ fontSize:12, color:'#64748b', marginTop:2 }}>{sub.description}</div>}
+                          <div style={{ display:'flex', gap:8, marginTop:8, flexWrap:'wrap' }}>
+                            <span className="badge badge-blue">৳{sub.amount?.toLocaleString()}</span>
+                            <span className={`badge ${expired?'badge-red':'badge-yellow'}`}>Due: {sub.deadline}</span>
+                            <span className={`badge ${sub.active?'badge-green':'badge-gray'}`}>{sub.active?'Active':'Inactive'}</span>
+                          </div>
+                        </div>
+                        <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+                          <button onClick={() => toggleSpecialSub(sub)}
+                            style={{ padding:'5px 12px', fontSize:12, fontWeight:600, border:'none', borderRadius:6, cursor:'pointer',
+                              background: sub.active ? '#fffbeb' : '#dcfce7',
+                              color: sub.active ? '#b45309' : '#15803d' }}>
+                            {sub.active ? 'Deactivate' : 'Activate'}
+                          </button>
+                          <button onClick={() => deleteSpecialSub(sub.id)}
+                            style={{ padding:'5px 10px', fontSize:12, fontWeight:600, border:'none', borderRadius:6, cursor:'pointer', background:'#fee2e2', color:'#b91c1c' }}>
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Invite Links ── */}
+      {tab === 'invites' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          <div className="card">
+            <div style={{ fontWeight:600, fontSize:14, color:'#0f172a', marginBottom:12 }}>Create Invite Link</div>
+            <div style={{ display:'flex', gap:10, alignItems:'flex-end' }}>
+              <div style={{ flex:1 }}>
+                <label className="form-label">Expires in</label>
+                <select value={inviteDays} onChange={e => setInviteDays(e.target.value)}>
+                  {[1,3,7,14,30].map(d => <option key={d} value={d}>{d} day{d>1?'s':''}</option>)}
+                </select>
+              </div>
+              <button onClick={createInvite} className="btn-primary" style={{ padding:'10px 20px', whiteSpace:'nowrap' }}>
+                Generate Link
+              </button>
+            </div>
+          </div>
+
+          {invites.length === 0 ? (
+            <div style={{ textAlign:'center', color:'#94a3b8', padding:24, fontSize:13 }}>No invite links yet</div>
+          ) : invites.map(inv => {
+            const url     = `${typeof window !== 'undefined' ? window.location.origin : ''}/join?token=${inv.id}`;
+            const exp     = inv.expiresAt?.seconds ? new Date(inv.expiresAt.seconds * 1000) : null;
+            const expired = exp && exp < new Date();
+            return (
+              <div key={inv.id} className="card" style={{ padding:'14px 16px' }}>
+                <div style={{ display:'flex', gap:10, alignItems:'center', marginBottom:8 }}>
+                  <input readOnly value={url} onClick={e => e.target.select()}
+                    style={{ flex:1, fontSize:12, fontFamily:'monospace', color:'#475569', background:'#f8fafc' }} />
+                  <button onClick={() => { navigator.clipboard.writeText(url); }} className="btn-ghost" style={{ padding:'6px 14px', fontSize:12, whiteSpace:'nowrap' }}>Copy</button>
+                  <button onClick={() => delInvite(inv.id)} style={{ padding:'6px 12px', fontSize:12, border:'none', background:'#fee2e2', color:'#b91c1c', borderRadius:6, cursor:'pointer' }}>Delete</button>
+                </div>
+                <div style={{ fontSize:11, color: expired ? '#dc2626' : '#94a3b8' }}>
+                  {exp ? (expired ? '✕ Expired: ' : '✓ Expires: ') + exp.toLocaleDateString('en-GB') : ''}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}

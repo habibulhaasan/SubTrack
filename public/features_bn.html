@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Friends ERA | সিস্টেম আর্কিটেকচার ও বৈশিষ্ট্য</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;600;700&family=Inter:wght@400;700;900&display=swap');
+        
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Hind Siliguri', 'Inter', sans-serif;
+            background-color: #fafaf9;
+            color: #1c1917;
+        }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 300px;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .capsule-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+    </style>
+</head>
+<body class="antialiased selection:bg-indigo-100 selection:text-indigo-900">
+
+    <!-- নেভিগেশন -->
+    <nav class="fixed top-0 w-full z-50 glass-panel border-b border-stone-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center gap-3">
+                    <img src="/logo.png" alt="Friends ERA Logo" class="w-9 h-9 object-contain" 
+                         onerror="this.src='https://ui-avatars.com/api/?name=FE&background=4f46e5&color=fff'"/>
+                    <span class="font-bold text-lg tracking-tight text-slate-800 uppercase">Friends ERA <span class="text-xs text-stone-500 font-medium ml-1">v1.0</span></span>
+                </div>
+                
+                <div class="flex items-center gap-6">
+                    <div class="hidden md:flex space-x-8 text-sm font-bold text-stone-600">
+                        <!-- হোম বাটন যুক্ত করা হলো -->
+                        <a href="/" class="hover:text-indigo-600 transition-colors">হোম</a>
+                        <a href="#ecosystem" class="hover:text-indigo-600 transition-colors">ইকোসিস্টেম</a>
+                        <a href="#simulation" class="hover:text-indigo-600 transition-colors">হিসাব সিমুলেটর</a>
+                    </div>
+                    <!-- English Toggle Button -->
+                    <a href="features.html" class="px-3 py-1 bg-stone-100 text-stone-600 rounded-lg text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all">
+                        EN
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- হিরো সেকশন -->
+    <header class="pt-32 pb-20 px-4 max-w-7xl mx-auto text-center">
+        <div class="inline-block px-4 py-1.5 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold uppercase tracking-widest mb-6 border border-indigo-100">
+            অ্যাসোসিয়েশন ম্যানেজমেন্ট সিস্টেম
+        </div>
+        <h1 class="text-4xl md:text-6xl font-black text-slate-900 tracking-tight mb-6 leading-tight">
+            প্রযুক্তির মাধ্যমে <br> <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-emerald-500">স্বচ্ছতা ও জবাবদিহিতা</span>
+        </h1>
+        <p class="max-w-2xl mx-auto text-lg text-stone-600 leading-relaxed mb-10">
+            রিয়েল-টাইম এক্সপেন্স ট্র্যাকিং, স্বয়ংক্রিয় জরিমানা সংগ্রহ এবং নিরাপদ মূলধন বিনিয়োগ নিশ্চিত করার একটি আধুনিক প্ল্যাটফর্ম।
+        </p>
+        <div class="flex justify-center gap-4">
+            <a href="#simulation" class="px-8 py-4 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg">
+                লেজার সিমুলেট করুন
+            </a>
+        </div>
+    </header>
+
+    <!-- ইকোসিস্টেম সেকশন -->
+    <section id="ecosystem" class="py-20 bg-white border-y border-stone-200">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl font-bold text-slate-900 mb-4">ডুয়াল-কোর ইকোসিস্টেম</h2>
+                <p class="text-stone-600 max-w-2xl mx-auto">সদস্য এবং অ্যাডমিনদের জন্য পৃথক এবং কার্যকরী ফিচার সেট।</p>
+            </div>
+
+            <div class="flex justify-center mb-12">
+                <div class="bg-stone-100 p-1 rounded-xl inline-flex">
+                    <button onclick="switchRole('member')" id="btn-member" class="px-6 py-2.5 rounded-lg text-sm font-bold transition-all bg-white text-slate-900 shadow-sm">
+                        সদস্য (Member)
+                    </button>
+                    <button onclick="switchRole('admin')" id="btn-admin" class="px-6 py-2.5 rounded-lg text-sm font-bold text-stone-500 hover:text-slate-900 transition-all">
+                        অ্যাডমিন (Admin)
+                    </button>
+                </div>
+            </div>
+
+            <div id="view-member" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="p-6 rounded-2xl bg-stone-50 border border-stone-100">
+                    <div class="text-2xl mb-4">👤</div>
+                    <h3 class="font-bold text-slate-900 mb-2">পার্সোনাল প্রোফাইল</h3>
+                    <p class="text-sm text-stone-600">নিজের তথ্য আপডেট এবং সদস্য আইডি কার্ড দেখার সুবিধা।</p>
+                </div>
+                <div class="p-6 rounded-2xl bg-stone-50 border border-stone-100">
+                    <div class="text-2xl mb-4">💸</div>
+                    <h3 class="font-bold text-slate-900 mb-2">স্বচ্ছ লেজার</h3>
+                    <p class="text-sm text-stone-600">অ্যাসোসিয়েশনের সকল খরচের হিসাব সরাসরি দেখার সুযোগ।</p>
+                </div>
+                <div class="p-6 rounded-2xl bg-stone-50 border border-stone-100">
+                    <div class="text-2xl mb-4">💳</div>
+                    <h3 class="font-bold text-slate-900 mb-2">পেমেন্ট পোর্টাল</h3>
+                    <p class="text-sm text-stone-600">মাসিক কিস্তি জমা দেওয়ার পর রিয়েল-টাইম আপডেট।</p>
+                </div>
+                <div class="p-6 rounded-2xl bg-stone-50 border border-stone-100">
+                    <div class="text-2xl mb-4">🔔</div>
+                    <h3 class="font-bold text-slate-900 mb-2">স্মার্ট নোটিফিকেশন</h3>
+                    <p class="text-sm text-stone-600">গুরুত্বপূর্ণ আপডেট এবং কিস্তির রিমাইন্ডার অ্যালার্ট।</p>
+                </div>
+            </div>
+
+            <div id="view-admin" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="p-6 rounded-2xl bg-slate-900 text-white">
+                    <div class="text-2xl mb-4">📊</div>
+                    <h3 class="font-bold mb-2">গ্লোবাল নেট ওয়ার্থ</h3>
+                    <p class="text-sm text-slate-300">সকল কিস্তি ও বিনিয়োগের ভিত্তিতে মোট সম্পদের হিসাব।</p>
+                </div>
+                <div class="p-6 rounded-2xl bg-white border border-stone-200">
+                    <div class="text-2xl mb-4">⚖️</div>
+                    <h3 class="font-bold text-slate-900 mb-2">জরিমানা ট্র্যাকিং</h3>
+                    <p class="text-sm text-stone-600">৫ তারিখের পর কিস্তি জমা দিলে স্বয়ংক্রিয় জরিমানা সংগ্রহ।</p>
+                </div>
+                <div class="p-6 rounded-2xl bg-white border border-stone-200">
+                    <div class="text-2xl mb-4">🚀</div>
+                    <h3 class="font-bold text-slate-900 mb-2">মূলধন বিনিয়োগ</h3>
+                    <p class="text-sm text-stone-600">নতুন প্রকল্পে বিনিয়োগ এবং লভ্যাংশ সংগ্রহের ট্র্যাকিং।</p>
+                </div>
+                <div class="p-6 rounded-2xl bg-white border border-stone-200">
+                    <div class="text-2xl mb-4">📢</div>
+                    <h3 class="font-bold text-slate-900 mb-2">ব্রডকাস্ট সেন্টার</h3>
+                    <p class="text-sm text-stone-600">এক ক্লিকেই সকল সদস্যের কাছে নোটিফিকেশন পাঠানো।</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- সিমুলেটর সেকশন -->
+    <section id="simulation" class="py-20 bg-stone-50">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+                <div class="lg:col-span-5 space-y-8">
+                    <h2 class="text-3xl font-black text-slate-900">ফাইন্যান্সিয়াল সিমুলেটর</h2>
+                    <p class="text-stone-600 text-sm">স্লাইডারগুলো সরিয়ে দেখুন কীভাবে অ্যাসোসিয়েশনের সম্পদ পরিবর্তিত হয়।</p>
+                    
+                    <div class="space-y-6">
+                        <div>
+                            <div class="flex justify-between text-xs font-bold text-stone-500 mb-2"><span>মোট কিস্তি</span> <span id="val-installments">৳৫,০০,০০০</span></div>
+                            <input type="range" min="100000" max="1000000" value="500000" class="w-full h-2 bg-stone-200 rounded-lg accent-indigo-600" id="in-installments">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs font-bold text-stone-500 mb-2"><span>অর্জিত লভ্যাংশ</span> <span id="val-profits">৳৫০,০০০</span></div>
+                            <input type="range" min="0" max="200000" value="50000" class="w-full h-2 bg-stone-200 rounded-lg accent-emerald-500" id="in-profits">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs font-bold text-stone-500 mb-2"><span>অপারেশনাল খরচ</span> <span id="val-expenses">৳২৫,০০০</span></div>
+                            <input type="range" min="0" max="100000" value="25000" class="w-full h-2 bg-stone-200 rounded-lg accent-rose-500" id="in-expenses">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-7 bg-white p-8 rounded-3xl shadow-xl border border-stone-100">
+                    <div class="grid grid-cols-2 gap-4 mb-8">
+                        <div class="p-4 bg-slate-900 rounded-2xl text-white text-center">
+                            <p class="text-[10px] uppercase font-bold text-slate-400 mb-1">মোট নিট সম্পদ</p>
+                            <p class="text-2xl font-black" id="disp-networth">৳৫,২৫,০০০</p>
+                        </div>
+                        <div class="p-4 bg-indigo-50 rounded-2xl text-indigo-900 text-center">
+                            <p class="text-[10px] uppercase font-bold text-indigo-400 mb-1">প্রফিট রেশিও</p>
+                            <p class="text-2xl font-black" id="disp-ratio">১০.০%</p>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="financeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ফুটার -->
+    <footer class="bg-white border-t border-stone-200 pt-16 pb-12">
+        <div class="max-w-7xl mx-auto px-6 flex flex-col items-center">
+            <img src="/logo.png" alt="Logo" class="w-10 h-10 grayscale opacity-30 mb-6 hover:grayscale-0 hover:opacity-100 transition-all cursor-crosshair" 
+                 onerror="this.src='https://ui-avatars.com/api/?name=FE&background=0f172a&color=fff'"/>
+
+            <div class="flex flex-col items-center space-y-3">
+                <div class="flex items-center gap-2.5 bg-slate-50 px-4 py-1.5 rounded-full border border-slate-100">
+                    <span class="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Crafted with</span>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-500 capsule-pulse">
+                        <path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z" />
+                        <path d="m8.5 8.5 7 7" />
+                    </svg>
+                    <span class="text-[9px] font-bold text-slate-500 uppercase tracking-wider">by a Pharmacist</span>
+                </div>
+
+                <a href="https://haasan.vercel.app/" target="_blank" rel="noopener noreferrer" class="group flex flex-col items-center space-y-0.5">
+                    <span class="text-lg font-black tracking-[0.2em] text-slate-900 uppercase group-hover:text-indigo-600 transition-all duration-300">
+                        HASAN
+                    </span>
+                    <div class="h-0.5 w-0 bg-indigo-600 group-hover:w-1/2 transition-all duration-500"></div>
+                    <span class="text-[8px] font-black text-slate-400 uppercase tracking-[0.3em] group-hover:text-slate-600 transition-colors">
+                        Developer Portfolio
+                    </span>
+                </a>
+            </div>
+
+            <p class="mt-10 text-[9px] font-bold text-stone-300 uppercase tracking-widest">
+                &copy; 2026 Friends ERA Management. All Rights Reserved.
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        function switchRole(role) {
+            const memberBtn = document.getElementById('btn-member');
+            const adminBtn = document.getElementById('btn-admin');
+            const memberView = document.getElementById('view-member');
+            const adminView = document.getElementById('view-admin');
+
+            if (role === 'member') {
+                memberBtn.classList.add('bg-white', 'text-slate-900', 'shadow-sm');
+                memberBtn.classList.remove('text-stone-500');
+                adminBtn.classList.remove('bg-white', 'text-slate-900', 'shadow-sm');
+                adminBtn.classList.add('text-stone-500');
+                memberView.classList.remove('hidden');
+                adminView.classList.add('hidden');
+            } else {
+                adminBtn.classList.add('bg-white', 'text-slate-900', 'shadow-sm');
+                adminBtn.classList.remove('text-stone-500');
+                memberBtn.classList.remove('bg-white', 'text-slate-900', 'shadow-sm');
+                memberBtn.classList.add('text-stone-500');
+                adminView.classList.remove('hidden');
+                memberView.classList.add('hidden');
+            }
+        }
+
+        const inInstallments = document.getElementById('in-installments');
+        const inProfits = document.getElementById('in-profits');
+        const inExpenses = document.getElementById('in-expenses');
+        const outNetWorth = document.getElementById('disp-networth');
+        const outRatio = document.getElementById('disp-ratio');
+
+        const ctx = document.getElementById('financeChart').getContext('2d');
+        let financeChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['আয় (Revenue)', 'ব্যয় (Expense)'],
+                datasets: [
+                    { label: 'কিস্তি', data: [500000, 0], backgroundColor: '#4f46e5', stack: 'Stack 0' },
+                    { label: 'লভ্যাংশ', data: [50000, 0], backgroundColor: '#10b981', stack: 'Stack 0' },
+                    { label: 'খরচ', data: [0, 25000], backgroundColor: '#e11d48', stack: 'Stack 1' }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+
+        function updateSimulation() {
+            const vInst = parseInt(inInstallments.value);
+            const vProf = parseInt(inProfits.value);
+            const vExp = parseInt(inExpenses.value);
+
+            document.getElementById('val-installments').innerText = `৳${vInst.toLocaleString()}`;
+            document.getElementById('val-profits').innerText = `৳${vProf.toLocaleString()}`;
+            document.getElementById('val-expenses').innerText = `৳${vExp.toLocaleString()}`;
+
+            const netWorth = vInst + vProf - vExp;
+            outNetWorth.innerText = `৳${netWorth.toLocaleString()}`;
+            outRatio.innerText = `${((vProf / vInst) * 100).toFixed(1)}%`;
+
+            financeChart.data.datasets[0].data[0] = vInst;
+            financeChart.data.datasets[1].data[0] = vProf;
+            financeChart.data.datasets[2].data[1] = vExp;
+            financeChart.update();
+        }
+
+        [inInstallments, inProfits, inExpenses].forEach(input => {
+            input.addEventListener('input', updateSimulation);
+        });
+    </script>
+</body>
+</html>
