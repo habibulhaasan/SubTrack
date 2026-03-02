@@ -1,213 +1,70 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, getDoc, doc, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
 
-const TOAST_STYLES = `
-  .err-toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#b91c1c; color:#fff; padding:12px 20px; border-radius:10px; font-size:13px; font-weight:600; z-index:99999; box-shadow:0 4px 20px rgba(0,0,0,.25); animation:fadeUp .25s ease both; }
-  .ok-toast  { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#15803d; color:#fff; padding:12px 20px; border-radius:10px; font-size:13px; font-weight:600; z-index:99999; box-shadow:0 4px 20px rgba(0,0,0,.25); animation:fadeUp .25s ease both; }
-`;
-function Toast({ msg, type, onDone }) {
-  useEffect(() => { const t = setTimeout(onDone, 3000); return () => clearTimeout(t); }, []);
-  return <div className={type === 'err' ? 'err-toast' : 'ok-toast'}>{msg}</div>;
-}
-
-const initials = n => (n || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-
-export default function SuperAdminMembers() {
+export default function PlatformSettings() {
   const { isSuperAdmin } = useAuth();
-  const [orgs, setOrgs]       = useState([]);
-  const [selOrg, setSelOrg]   = useState(null);
-  const [members, setMembers] = useState([]);
-  const [search, setSearch]   = useState('');
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving]   = useState(null);
-  const [toast, setToast]     = useState(null);
+  const [s, setS] = useState({ requireOrgApproval:true, maxOrgsPerUser:5, maxMembersFreeTier:20, platformName:'DonateTrack', supportEmail:'', maintenanceMode:false, allowNewRegistrations:true });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved]   = useState(false);
 
   useEffect(() => {
-    if (!isSuperAdmin) return;
-    const unsub = onSnapshot(
-      collection(db, 'organizations'),
-      snap => setOrgs(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.name || '').localeCompare(b.name || ''))),
-      err => setToast({ msg: 'Failed to load orgs: ' + err.message, type: 'err' })
-    );
+    const unsub = onSnapshot(doc(db,'platform','settings'), snap => { if (snap.exists()) setS(p=>({...p,...snap.data()})); });
     return unsub;
-  }, [isSuperAdmin]);
+  }, []);
 
-  // Live member subscription + profile merging
-  useEffect(() => {
-    if (!selOrg) { setMembers([]); return; }
-    setLoading(true);
-    let cancelled = false;
-
-    const unsub = onSnapshot(
-      collection(db, 'organizations', selOrg.id, 'members'),
-      async snap => {
-        if (cancelled) return;
-        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        const merged = await Promise.all(docs.map(async m => {
-          try {
-            const uSnap = await getDoc(doc(db, 'users', m.id));
-            return uSnap.exists() ? { ...uSnap.data(), ...m } : m;
-          } catch { return m; }
-        }));
-        if (!cancelled) {
-          merged.sort((a, b) => (a.nameEnglish || '').localeCompare(b.nameEnglish || ''));
-          setMembers(merged);
-          setLoading(false);
-        }
-      },
-      err => {
-        if (!cancelled) {
-          setToast({ msg: 'Failed to load members: ' + err.message, type: 'err' });
-          setLoading(false);
-        }
-      }
-    );
-    return () => { cancelled = true; unsub(); };
-  }, [selOrg]);
-
-  const toggleRole = async (m) => {
-    const newRole = m.role === 'admin' ? 'member' : 'admin';
-    setSaving(m.id + '_role');
-    try {
-      await updateDoc(doc(db, 'organizations', selOrg.id, 'members', m.id), { role: newRole });
-      setToast({ msg: `${m.nameEnglish || 'Member'} role changed to ${newRole}.`, type: 'ok' });
-    } catch (e) {
-      setToast({ msg: 'Failed: ' + e.message, type: 'err' });
-    }
-    setSaving(null);
+  const save = async () => {
+    setSaving(true);
+    try { await setDoc(doc(db,'platform','settings'), s, {merge:true}); setSaved(true); setTimeout(()=>setSaved(false),3000); }
+    catch (e) { alert(e.message); }
+    setSaving(false);
   };
 
-  const toggleApproval = async (m) => {
-    setSaving(m.id + '_approved');
-    const next = !m.approved;
-    try {
-      await updateDoc(doc(db, 'organizations', selOrg.id, 'members', m.id), { approved: next });
-      setToast({ msg: `${m.nameEnglish || 'Member'} ${next ? 'approved' : 'suspended'}.`, type: 'ok' });
-    } catch (e) {
-      setToast({ msg: 'Failed: ' + e.message, type: 'err' });
-    }
-    setSaving(null);
-  };
-
-  const filtered = members.filter(m =>
-    !search ||
-    (m.nameEnglish || '').toLowerCase().includes(search.toLowerCase()) ||
-    (m.email || '').toLowerCase().includes(search.toLowerCase()) ||
-    (m.idNo || '').includes(search)
+  const Toggle = ({ label, sub, k }) => (
+    <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', padding:'14px 0', borderBottom:'1px solid #f1f5f9', gap:12 }}>
+      <div>
+        <div style={{ fontSize:14, color:'#0f172a', fontWeight:500, marginBottom:2 }}>{label}</div>
+        {sub && <div style={{ fontSize:12, color:'#64748b' }}>{sub}</div>}
+      </div>
+      <button type="button" onClick={()=>setS(p=>({...p,[k]:!p[k]}))}
+        style={{ width:44, height:24, borderRadius:99, border:'none', cursor:'pointer', background:s[k]?'#2563eb':'#e2e8f0', position:'relative', flexShrink:0, marginTop:2 }}>
+        <span style={{ position:'absolute', top:2, left:s[k]?20:2, width:20, height:20, borderRadius:'50%', background:'#fff', boxShadow:'0 1px 3px rgba(0,0,0,0.15)', transition:'left 0.2s' }} />
+      </button>
+    </div>
   );
 
   if (!isSuperAdmin) return null;
 
   return (
-    <div className="page-wrap animate-fade">
-      <style>{TOAST_STYLES}</style>
-
+    <div style={{ padding:24, maxWidth:800, margin:'0 auto' }} className="animate-fade">
       <div className="page-header">
         <div style={{ fontSize:11, fontWeight:600, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:6 }}>Super Admin</div>
-        <div className="page-title">All Members</div>
-        <div className="page-subtitle">View, approve, and manage members across all organizations</div>
+        <div className="page-title">Platform Settings</div>
+        <div className="page-subtitle">Global rules across all organizations</div>
       </div>
-
-      {/* Org selector */}
-      <div className="card" style={{ marginBottom:16 }}>
-        <div style={{ fontWeight:600, fontSize:14, color:'#0f172a', marginBottom:10 }}>Select Organization</div>
-        {orgs.length === 0
-          ? <p style={{ fontSize:13, color:'#94a3b8' }}>No organizations found.</p>
-          : <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
-              {orgs.map(o => (
-                <button key={o.id} onClick={() => { setSelOrg(o); setSearch(''); }}
-                  style={{ padding:'8px 14px', borderRadius:8, fontSize:13, fontWeight:selOrg?.id===o.id?600:400, cursor:'pointer',
-                    border:     selOrg?.id===o.id ? '2px solid #2563eb' : '1px solid #e2e8f0',
-                    background: selOrg?.id===o.id ? '#eff6ff' : '#fff',
-                    color:      selOrg?.id===o.id ? '#1d4ed8' : '#475569' }}>
-                  {o.name}
-                  <span style={{ marginLeft:5, fontSize:10, opacity:0.6 }}>
-                    ({o.status === 'pending' ? '⏳ pending' : o.status || 'active'})
-                  </span>
-                </button>
-              ))}
-            </div>
-        }
-      </div>
-
-      {selOrg && (
-        <>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14, flexWrap:'wrap', gap:10 }}>
-            <div>
-              <span style={{ fontWeight:700, fontSize:15, color:'#0f172a' }}>{selOrg.name}</span>
-              <span style={{ fontSize:13, color:'#94a3b8', marginLeft:10 }}>{members.length} members</span>
-            </div>
-            <input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search by name / email / ID…" style={{ width:240 }} />
+      {saved && <div className="alert alert-success">Platform settings saved.</div>}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+        <div className="card">
+          <div style={{ fontWeight:600, fontSize:14, marginBottom:16 }}>General</div>
+          <div className="form-group"><label className="form-label">Platform Name</label><input value={s.platformName} onChange={e=>setS(p=>({...p,platformName:e.target.value}))} /></div>
+          <div className="form-group"><label className="form-label">Support Email</label><input type="email" value={s.supportEmail} onChange={e=>setS(p=>({...p,supportEmail:e.target.value}))} placeholder="support@platform.com" /></div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 12px' }}>
+            <div className="form-group"><label className="form-label">Max Orgs / User</label><input type="number" min="1" value={s.maxOrgsPerUser} onChange={e=>setS(p=>({...p,maxOrgsPerUser:Number(e.target.value)}))} /></div>
+            <div className="form-group"><label className="form-label">Free Members</label><input type="number" min="1" value={s.maxMembersFreeTier} onChange={e=>setS(p=>({...p,maxMembersFreeTier:Number(e.target.value)}))} /></div>
           </div>
-
-          {loading ? (
-            <div style={{ textAlign:'center', padding:48, color:'#94a3b8' }}>Loading members…</div>
-          ) : filtered.length === 0 ? (
-            <div className="card" style={{ textAlign:'center', padding:32, color:'#94a3b8' }}>
-              {members.length === 0 ? 'No members yet.' : 'No members match your search.'}
-            </div>
-          ) : (
-            <div className="table-wrap"><div className="table-scroll">
-              <table>
-                <thead>
-                  <tr><th>Member</th><th>Phone</th><th>ID</th><th>Role</th><th>Status</th><th>Make Admin</th><th>Approve</th></tr>
-                </thead>
-                <tbody>
-                  {filtered.map(m => (
-                    <tr key={m.id}>
-                      <td>
-                        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                          <div style={{ width:34, height:34, borderRadius:'50%', background:'#dbeafe', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, color:'#1d4ed8', flexShrink:0, overflow:'hidden' }}>
-                            {m.photoURL ? <img src={m.photoURL} style={{ width:'100%', height:'100%', objectFit:'cover' }} alt="" /> : initials(m.nameEnglish)}
-                          </div>
-                          <div>
-                            <div style={{ fontWeight:600, fontSize:13 }}>{m.nameEnglish || '(no name)'}</div>
-                            <div style={{ fontSize:11, color:'#94a3b8' }}>{m.email || '—'}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td style={{ fontSize:12 }}>{m.phone || '—'}</td>
-                      <td style={{ fontFamily:'monospace', fontSize:12 }}>{m.idNo || '—'}</td>
-                      <td><span className={`badge ${m.role==='admin'?'badge-blue':'badge-gray'}`}>{m.role || 'member'}</span></td>
-                      <td><span className={`badge ${m.approved?'badge-green':'badge-yellow'}`}>{m.approved ? 'Approved' : 'Pending'}</span></td>
-                      <td>
-                        <button onClick={() => toggleRole(m)} disabled={!!saving}
-                          style={{ padding:'5px 12px', fontSize:11, fontWeight:600, borderRadius:6, border:'none', cursor:'pointer', whiteSpace:'nowrap',
-                            background: m.role==='admin' ? '#fee2e2' : '#eff6ff',
-                            color:      m.role==='admin' ? '#b91c1c' : '#1d4ed8',
-                            opacity: saving ? 0.6 : 1 }}>
-                          {saving === m.id+'_role' ? '…' : m.role==='admin' ? 'Revoke' : 'Make Admin'}
-                        </button>
-                      </td>
-                      <td>
-                        <button onClick={() => toggleApproval(m)} disabled={!!saving}
-                          style={{ padding:'5px 12px', fontSize:11, fontWeight:600, borderRadius:6, border:'none', cursor:'pointer', whiteSpace:'nowrap',
-                            background: m.approved ? '#fee2e2' : '#dcfce7',
-                            color:      m.approved ? '#b91c1c' : '#15803d',
-                            opacity: saving ? 0.6 : 1 }}>
-                          {saving === m.id+'_approved' ? '…' : m.approved ? 'Suspend' : 'Approve'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div></div>
-          )}
-        </>
-      )}
-
-      {!selOrg && orgs.length > 0 && (
-        <div style={{ textAlign:'center', color:'#94a3b8', padding:'60px 20px', fontSize:14 }}>
-          ↑ Select an organization above to view its members
         </div>
-      )}
-
-      {toast && <Toast msg={toast.msg} type={toast.type} onDone={() => setToast(null)} />}
+        <div className="card">
+          <div style={{ fontWeight:600, fontSize:14, marginBottom:4 }}>Access Controls</div>
+          <Toggle label="Require Org Approval" sub="New orgs need superadmin approval" k="requireOrgApproval" />
+          <Toggle label="Allow New Registrations" sub="Block new signups when off" k="allowNewRegistrations" />
+          <Toggle label="Maintenance Mode" sub="Show maintenance page to all users" k="maintenanceMode" />
+        </div>
+      </div>
+      <div style={{ marginTop:20 }}>
+        <button onClick={save} disabled={saving} className="btn-primary" style={{ padding:'11px 32px' }}>{saving?'Saving…':'Save Settings'}</button>
+      </div>
     </div>
   );
 }

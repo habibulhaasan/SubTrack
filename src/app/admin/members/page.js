@@ -8,51 +8,51 @@ const initials = n => (n||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpp
 
 const MODAL_STYLES = `
   .mem-overlay {
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,.5);
+    position: fixed;
+    inset: 0;
+    top: 56px;
+    background: rgba(0,0,0,.55);
     z-index: 9000;
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    padding-top: 56px;
   }
   .mem-sheet {
     background: #fff;
     width: 100%;
-    max-height: calc(100vh - 56px);
+    max-height: calc(100vh - 80px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     border-radius: 20px 20px 0 0;
-    display: flex;
-    flex-direction: column;
-    animation: memUp .25s cubic-bezier(.32,1,.32,1) both;
+    animation: memUp .28s cubic-bezier(.32,1,.32,1) both;
   }
   .mem-handle {
     width: 40px; height: 4px;
-    background: #e2e8f0; border-radius: 99px;
-    margin: 12px auto 0; flex-shrink: 0;
+    background: #cbd5e1; border-radius: 99px;
+    margin: 12px auto 4px; flex-shrink: 0;
   }
   .mem-body {
-    padding: 16px 20px 52px;
-    flex: 1;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    padding: 8px 20px 40px;
   }
-  .mem-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .mem-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
   @keyframes memUp {
-    from { transform: translateY(100%); opacity: 0; }
-    to   { transform: translateY(0); opacity: 1; }
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
   }
   @media (min-width: 769px) {
-    .mem-overlay { align-items: center; padding: 24px; }
+    .mem-overlay {
+      top: 0;
+      align-items: center;
+      padding: 24px;
+    }
     .mem-sheet {
-      max-width: 520px;
-      max-height: min(90vh, 680px);
+      max-width: 500px;
+      max-height: 88vh;
       border-radius: 16px;
       animation: memPop .2s ease both;
     }
     .mem-handle { display: none; }
-    .mem-body { padding: 24px 28px 32px; }
+    .mem-body { padding: 20px 28px 32px; }
   }
   @keyframes memPop {
     from { transform: scale(.96) translateY(8px); opacity: 0; }
