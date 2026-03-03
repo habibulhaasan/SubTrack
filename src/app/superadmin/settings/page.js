@@ -38,7 +38,7 @@ export default function PlatformSettings() {
   if (!isSuperAdmin) return null;
 
   return (
-    <div style={{ padding:24, maxWidth:800, margin:'0 auto' }} className="animate-fade">
+    <div className="page-wrap animate-fade">
       <div className="page-header">
         <div style={{ fontSize:11, fontWeight:600, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:6 }}>Super Admin</div>
         <div className="page-title">Platform Settings</div>

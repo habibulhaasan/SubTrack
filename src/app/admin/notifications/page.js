@@ -46,7 +46,7 @@ export default function AdminNotifications() {
   };
 
   return (
-    <div style={{ padding:24, maxWidth:640, margin:'0 auto' }} className="animate-fade">
+    <div className="page-wrap animate-fade">
       <div className="page-header">
         <div className="page-title">Send Notification</div>
         <div className="page-subtitle">Send messages to members</div>

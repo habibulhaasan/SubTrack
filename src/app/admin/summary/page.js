@@ -39,7 +39,7 @@ export default function AdminSummary() {
   );
 
   return (
-    <div style={{ padding:24, maxWidth:900, margin:'0 auto' }} className="animate-fade">
+    <div className="page-wrap animate-fade">
       <div className="page-header">
         <div className="page-title">Financial Summary</div>
         <div className="page-subtitle">Organization-wide overview</div>

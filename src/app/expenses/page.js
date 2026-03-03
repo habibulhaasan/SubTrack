@@ -18,7 +18,7 @@ export default function Expenses() {
   const total = items.reduce((s,i) => s+(i.amount||0), 0);
 
   return (
-    <div style={{ padding:24, maxWidth:800, margin:'0 auto' }} className="animate-fade">
+    <div className="page-wrap animate-fade">
       <div className="page-header">
         <div className="page-title">Expenses</div>
         <div className="page-subtitle">Total: ৳{total.toLocaleString()}</div>

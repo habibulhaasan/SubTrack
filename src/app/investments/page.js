@@ -15,7 +15,7 @@ export default function Investments() {
   }, [orgId]);
 
   return (
-    <div style={{ padding:24, maxWidth:900, margin:'0 auto' }} className="animate-fade">
+    <div className="page-wrap animate-fade">
       <div className="page-header">
         <div className="page-title">Projects</div>
         <div className="page-subtitle">Fund investments and deployments</div>

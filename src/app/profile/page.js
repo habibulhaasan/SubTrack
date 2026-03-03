@@ -85,7 +85,7 @@ export default function Profile() {
   );
 
   return (
-    <div style={{ padding:24, maxWidth:700, margin:'0 auto' }} className="animate-fade">
+    <div className="page-wrap animate-fade">
       <div className="page-header">
         <div className="page-title">My Profile</div>
         <div className="page-subtitle">Your personal information</div>

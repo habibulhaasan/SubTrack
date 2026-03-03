@@ -168,7 +168,7 @@ export default function Installment() {
   const hasAnything = monthlyEnabled || specialSubs.length > 0;
 
   return (
-    <div className="page-wrap animate-fade" style={{ maxWidth:760 }}>
+    <div className="page-wrap animate-fade">
       <div className="page-header" style={{ display:'flex', alignItems:'center', gap:14 }}>
         {orgData?.logoURL && (
           <div style={{ width:44, height:44, borderRadius:10, overflow:'hidden', flexShrink:0 }}>
