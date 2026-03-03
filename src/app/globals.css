@@ -369,3 +369,100 @@ tbody tr:hover { background: #f8fafc; cursor: pointer; }
   color: var(--accent);
   font-weight: 600;
 }
+
+/* ─── Layout: sidebar + main content ─────────────────────────────── */
+/* Desktop: sidebar is fixed 240px on the left */
+.md-sidebar  { display: flex !important; flex-direction: column; }
+.mobile-bar  { display: none !important; }
+.shell-main  { margin-left: 240px; min-height: 100vh; }
+
+/* Non-auth pages: no sidebar offset */
+.shell-main.no-sidebar { margin-left: 0; }
+
+/* Desktop sidebar internal layout — header fixed, nav scrolls */
+.sidebar-inner  { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.sidebar-header { flex-shrink: 0; }
+.sidebar-nav    { flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0; scrollbar-width: thin; scrollbar-color: #e2e8f0 transparent; }
+.sidebar-nav::-webkit-scrollbar       { width: 4px; }
+.sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+.sidebar-nav::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 99px; }
+.sidebar-footer { flex-shrink: 0; border-top: 1px solid #e2e8f0; }
+
+/* Mobile: hide desktop sidebar, show topbar, push content down */
+@media (max-width: 768px) {
+  .md-sidebar  { display: none  !important; }
+  .mobile-bar  { display: flex  !important; }
+  .shell-main  { margin-left: 0; }
+  .shell-main.has-sidebar { padding-top: 56px; }
+}
+
+/* ─── Universal modal / dialog ─────────────────────────────────────
+   Mobile  → bottom sheet (slides up from bottom)
+   Desktop → centred dialog (pops in from centre)
+   Use class .dt-modal-overlay + .dt-modal-sheet on the overlay+panel.
+   The handle (.dt-modal-handle) is hidden on desktop automatically.
+──────────────────────────────────────────────────────────────────── */
+.dt-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.52);
+  z-index: 9000;
+  display: flex;
+  align-items: flex-end;          /* bottom sheet on mobile */
+  justify-content: center;
+  padding-top: 56px;              /* clear topbar on mobile */
+}
+.dt-sheet {
+  background: #fff;
+  width: 100%;
+  max-height: calc(100vh - 56px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 20px 20px 0 0;
+  display: flex;
+  flex-direction: column;
+  animation: dtUp .26s cubic-bezier(.32,1,.32,1) both;
+}
+.dt-handle {
+  width: 40px; height: 4px;
+  background: #cbd5e1; border-radius: 99px;
+  margin: 12px auto 4px; flex-shrink: 0;
+}
+.dt-body  { padding: 8px 20px 44px; }
+.dt-head  { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+.dt-title { font-size: 16px; font-weight: 700; color: #0f172a; }
+.dt-close { background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 24px; line-height: 1; padding: 0; }
+
+@keyframes dtUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* Desktop override — centred dialog */
+@media (min-width: 769px) {
+  .dt-overlay {
+    align-items: center;
+    justify-content: center;
+    padding: 32px 24px;
+  }
+  .dt-sheet {
+    width: auto;
+    min-width: 520px;
+    max-width: 620px;
+    max-height: calc(100vh - 64px);
+    border-radius: 16px;
+    animation: dtPop .2s ease both;
+  }
+  .dt-handle { display: none; }
+  .dt-body   { padding: 24px 32px 36px; }
+}
+
+@keyframes dtPop {
+  from { transform: scale(.96); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+/* Wide dialog variant (for forms with side-by-side fields) */
+@media (min-width: 769px) {
+  .dt-sheet.dt-wide { min-width: 620px; max-width: 760px; }
+}
