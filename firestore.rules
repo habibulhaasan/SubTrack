@@ -3,159 +3,177 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
-
     function isSignedIn() {
       return request.auth != null;
     }
 
+    // Checks the users/{uid} doc for role == 'superadmin'
     function isSuperAdmin() {
-      return isSignedIn() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin';
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'superadmin';
     }
 
+    // Checks membership doc: must exist and have role == 'admin'
     function isOrgAdmin(orgId) {
-      return isSignedIn() &&
-        get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role == 'admin';
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid))
+        && get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.get('role', '') == 'admin';
     }
 
-    function isApprovedMember(orgId) {
-      return isSignedIn() &&
-        get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.approved == true;
+    // Checks membership doc: must exist and approved == true
+    function isOrgMember(orgId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid))
+        && get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.get('approved', false) == true;
     }
 
-    function isOwnDoc(uid) {
-      return isSignedIn() && request.auth.uid == uid;
-    }
-
-
-    // ── Users collection ─────────────────────────────────────────────────────
-
+    // ── Users collection ───────────────────────────────────────────────────
     match /users/{userId} {
-      // Anyone signed in can read their own doc; superadmin can read all
-      allow read: if isOwnDoc(userId) || isSuperAdmin();
-
-      // User can write their own doc; superadmin can write any
-      allow write: if isOwnDoc(userId) || isSuperAdmin();
-
-      // Allow new user creation on registration (their own doc)
-      allow create: if isOwnDoc(userId);
+      // Any signed-in user can read user docs (needed to show names/profiles)
+      allow read:   if isSignedIn();
+      // Only the user themselves can create their own doc
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      // User can update their own doc; superadmin can update any
+      allow update: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+      allow delete: if isSuperAdmin();
     }
 
-
-    // ── Organizations ────────────────────────────────────────────────────────
-
+    // ── Organizations ──────────────────────────────────────────────────────
     match /organizations/{orgId} {
-      // Approved members and admins can read their org
-      allow read: if isApprovedMember(orgId) || isOrgAdmin(orgId) || isSuperAdmin();
-
-      // Only org admin or superadmin can update org settings/status
-      allow update: if isOrgAdmin(orgId) || isSuperAdmin();
-
-      // Any authenticated user can create an org (they become admin in the subcollection)
+      // Members, admins, creator, or superadmin can read
+      allow read: if isSignedIn() && (
+        request.auth.uid == resource.data.get('createdBy', '')
+        || isOrgMember(orgId)
+        || isOrgAdmin(orgId)
+        || isSuperAdmin()
+      );
+      // Any signed-in user can create an org
       allow create: if isSignedIn();
-
-      // Only superadmin can delete an org
+      // Only org admin or superadmin can update/delete
+      allow update: if isOrgAdmin(orgId) || isSuperAdmin();
       allow delete: if isSuperAdmin();
 
-
-      // ── Members subcollection ─────────────────────────────────────────────
-
+      // ── Members subcollection ─────────────────────────────────────────
       match /members/{memberId} {
-        // Org admin and superadmin can read all members
-        // Members can read their own membership doc
-        allow read: if isOwnDoc(memberId) || isOrgAdmin(orgId) || isSuperAdmin();
-
-        // Org admin or superadmin can write any member doc (approve, change role, set ID, set amount)
-        allow write: if isOrgAdmin(orgId) || isSuperAdmin();
-
-        // Any signed-in user can create their own membership (joining via invite)
-        allow create: if isOwnDoc(memberId);
-
-        // Members can update their own doc (e.g. profile sync) but not role/approved
-        allow update: if isOwnDoc(memberId)
-          && !('role' in request.resource.data)
-          && !('approved' in request.resource.data);
+        // A member can read their own doc; admin or superadmin can read all
+        allow read: if isSignedIn() && (
+          request.auth.uid == memberId
+          || isOrgAdmin(orgId)
+          || isSuperAdmin()
+        );
+        // A member can join (create their own doc); admin or superadmin can add any
+        allow create: if isSignedIn() && (
+          request.auth.uid == memberId
+          || isOrgAdmin(orgId)
+          || isSuperAdmin()
+        );
+        // Admin/superadmin can update any field; member can update own non-privileged fields
+        allow update: if isOrgAdmin(orgId) || isSuperAdmin()
+          || (
+            isSignedIn()
+            && request.auth.uid == memberId
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'approved'])
+          );
+        allow delete: if isOrgAdmin(orgId) || isSuperAdmin();
       }
 
-
-      // ── Investments (installment payments) ───────────────────────────────
-
-      match /investments/{investmentId} {
-        // Members can read their own payments; admins can read all
-        allow read: if isApprovedMember(orgId) || isOrgAdmin(orgId) || isSuperAdmin();
-
-        // Approved members can submit new payments (create only)
-        allow create: if isApprovedMember(orgId);
-
-        // Only org admin or superadmin can update/verify/reject payments
+      // ── Payments / Investments subcollection ──────────────────────────
+      match /investments/{paymentId} {
+        allow read:   if isOrgMember(orgId) || isOrgAdmin(orgId) || isSuperAdmin();
+        allow create: if isOrgMember(orgId) || isOrgAdmin(orgId) || isSuperAdmin();
         allow update: if isOrgAdmin(orgId) || isSuperAdmin();
-
         allow delete: if isOrgAdmin(orgId) || isSuperAdmin();
       }
 
-
-      // ── Expenses ─────────────────────────────────────────────────────────
-
+      // ── Expenses ──────────────────────────────────────────────────────
       match /expenses/{expenseId} {
-        // Approved members can read (transparency); admins can write
-        allow read: if isApprovedMember(orgId) || isOrgAdmin(orgId) || isSuperAdmin();
+        allow read:  if isOrgMember(orgId) || isOrgAdmin(orgId) || isSuperAdmin();
         allow write: if isOrgAdmin(orgId) || isSuperAdmin();
       }
 
-
-      // ── Deployments (investments made by the org) ─────────────────────────
-
+      // ── Deployments ───────────────────────────────────────────────────
       match /deployments/{deploymentId} {
-        // Approved members can read; only admins can write
-        allow read: if isApprovedMember(orgId) || isOrgAdmin(orgId) || isSuperAdmin();
+        allow read:  if isOrgMember(orgId) || isOrgAdmin(orgId) || isSuperAdmin();
         allow write: if isOrgAdmin(orgId) || isSuperAdmin();
       }
 
-
-      // ── Notifications ─────────────────────────────────────────────────────
-
-      match /notifications/{notifId} {
-        // Users can read and delete their own notifications
-        allow read, delete: if isSignedIn() &&
-          resource.data.userId == request.auth.uid;
-
-        // Users can mark their own notifications as read (update)
-        allow update: if isSignedIn() &&
-          resource.data.userId == request.auth.uid;
-
-        // Org admins can create notifications (to send to members)
-        allow create: if isOrgAdmin(orgId) || isSuperAdmin();
-
-        // Admins can also delete notifications
-        allow delete: if isOrgAdmin(orgId) || isSuperAdmin();
+      // ── Income ────────────────────────────────────────────────────────
+      match /income/{incomeId} {
+        allow read:  if isOrgMember(orgId) || isOrgAdmin(orgId) || isSuperAdmin();
+        allow write: if isOrgAdmin(orgId) || isSuperAdmin();
       }
 
-    } // end organizations/{orgId}
+      // ── Special Subscriptions ─────────────────────────────────────────
+      match /specialSubscriptions/{subId} {
+        allow read:  if isOrgMember(orgId) || isOrgAdmin(orgId) || isSuperAdmin();
+        allow write: if isOrgAdmin(orgId) || isSuperAdmin();
+      }
 
+      // ── Distribution History ───────────────────────────────────────────
+      match /distributionHistory/{entryId} {
+        allow read:  if isOrgMember(orgId) || isOrgAdmin(orgId) || isSuperAdmin();
+        allow write: if isOrgAdmin(orgId) || isSuperAdmin();
+      }
 
-    // ── Invite Links ─────────────────────────────────────────────────────────
+      // ── Charity Records ────────────────────────────────────────────────
+      match /charityRecords/{recordId} {
+        allow read:  if isOrgMember(orgId) || isOrgAdmin(orgId) || isSuperAdmin();
+        allow write: if isOrgAdmin(orgId) || isSuperAdmin();
+      }
 
+      // ── Investment Portfolio ───────────────────────────────────────────
+      match /portfolio/{itemId} {
+        allow read:  if isOrgMember(orgId) || isOrgAdmin(orgId) || isSuperAdmin();
+        allow write: if isOrgAdmin(orgId) || isSuperAdmin();
+      }
+
+      // ── Notifications ─────────────────────────────────────────────────
+      match /notifications/{notifId} {
+        // Members read their own notifications; admins read all
+        allow read:   if isSignedIn() && (
+          resource.data.get('userId', '') == request.auth.uid
+          || isOrgAdmin(orgId)
+          || isSuperAdmin()
+        );
+        // Members can mark their own as read; admins can update any
+        allow update: if isSignedIn() && (
+          resource.data.get('userId', '') == request.auth.uid
+          || isOrgAdmin(orgId)
+          || isSuperAdmin()
+        );
+        // Members delete their own; admins delete any
+        allow delete: if isSignedIn() && (
+          resource.data.get('userId', '') == request.auth.uid
+          || isOrgAdmin(orgId)
+          || isSuperAdmin()
+        );
+        // Only admin or superadmin can create notifications
+        allow create: if isOrgAdmin(orgId) || isSuperAdmin();
+      }
+    }
+
+    // ── Invite links ───────────────────────────────────────────────────────
     match /invites/{inviteId} {
-      // Anyone can read an invite (to preview the org before joining)
+      // Anyone can read invite links (needed for join flow without auth)
       allow read: if true;
-
-      // Only org admins can create/delete invites for their org
-      allow create: if isSignedIn() && isOrgAdmin(request.resource.data.orgId);
-      allow delete: if isSignedIn() && isOrgAdmin(resource.data.orgId);
-
-      // No updates to invites (immutable — delete and recreate)
+      // Org admin or superadmin can create invite links
+      allow create: if isSignedIn() && (
+        isOrgAdmin(request.resource.data.get('orgId', ''))
+        || isSuperAdmin()
+      );
+      // Org admin or superadmin can delete
+      allow delete: if isSignedIn() && (
+        isOrgAdmin(resource.data.get('orgId', ''))
+        || isSuperAdmin()
+      );
       allow update: if false;
     }
 
-
-    // ── Platform settings (superadmin only) ───────────────────────────────
-
+    // ── Platform-wide settings (superadmin only) ───────────────────────────
     match /platform/{docId} {
-      allow read: if isSignedIn();           // all signed-in users can read (e.g. check requireOrgApproval)
+      allow read:  if isSignedIn();
       allow write: if isSuperAdmin();
     }
-
-
-  } // end match /databases
+  }
 }

@@ -1,3 +1,4 @@
+// src/app/dashboard/page.js
 'use client';
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
@@ -20,10 +21,11 @@ export default function Dashboard() {
   const [totals, setTotals]         = useState({ fund:0, expenses:0, profit:0 });
   const [myStats, setMyStats]       = useState({ paid:0, pending:0, months:0 });
   const [recent, setRecent]         = useState([]);
-  const [loading, setLoading]       = useState(true);
-  const orgId   = userData?.activeOrgId;
+  const [specialSubs, setSpecialSubs] = useState([]);     // active special subscriptions
+  const [mySubPays, setMySubPays]     = useState([]);     // my payments for special subs
+  const [loading, setLoading]         = useState(true);
+  const orgId    = userData?.activeOrgId;
   const settings = orgData?.settings || {};
-  const curr    = orgData?.currency || 'BDT';
 
   useEffect(() => {
     if (!user || !orgId) return;
@@ -46,9 +48,15 @@ export default function Dashboard() {
       const months = new Set(v.flatMap(d => d.paidMonths||[]));
       setMyStats({ paid: v.reduce((s,d)=>s+((d.amount||0)-(d.penaltyPaid||0)),0), pending: p.reduce((s,d)=>s+(d.amount||0),0), months: months.size });
       setRecent(docs.slice(0,5));
+      // Track my special sub payments
+      setMySubPays(docs.filter(d => d.specialSubId));
       setLoading(false);
     });
-    return () => { u1(); u2(); u3(); u4(); };
+    // Load active special subscriptions
+    const u5 = onSnapshot(collection(db, 'organizations', orgId, 'specialSubscriptions'), snap => {
+      setSpecialSubs(snap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.active));
+    });
+    return () => { u1(); u2(); u3(); u4(); u5(); };
   }, [user, orgId]);
 
   // Installment progress
@@ -87,6 +95,40 @@ export default function Dashboard() {
         <Stat label="Net Profit"        value={`৳${totals.profit.toLocaleString()}`}    sub="From investments" />
         <Stat label="Expenses"          value={`৳${totals.expenses.toLocaleString()}`}  sub="Total spent" />
       </div>
+
+      {/* Special Subscription Cards */}
+      {specialSubs.length > 0 && (
+        <div style={{ marginBottom:24 }}>
+          <div style={{ fontSize:13, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:10 }}>Special Subscriptions</div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(240px, 1fr))', gap:12 }}>
+            {specialSubs.map(sub => {
+              const myPay = mySubPays.find(p => p.specialSubId === sub.id);
+              const paid    = myPay?.status === 'verified';
+              const pending = myPay?.status === 'pending';
+              return (
+                <div key={sub.id} style={{ background:'#fff', border:`1.5px solid ${paid?'#bbf7d0':pending?'#fed7aa':'#e2e8f0'}`, borderRadius:12, padding:'16px 18px' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8, marginBottom:10 }}>
+                    <div style={{ fontWeight:700, fontSize:14, color:'#0f172a' }}>{sub.title}</div>
+                    {paid    && <span className="badge badge-green"  style={{ fontSize:10, flexShrink:0 }}>Paid ✓</span>}
+                    {pending && <span className="badge badge-yellow" style={{ fontSize:10, flexShrink:0 }}>Pending</span>}
+                    {!myPay  && <span className="badge badge-red"    style={{ fontSize:10, flexShrink:0 }}>Unpaid</span>}
+                  </div>
+                  {sub.description && <div style={{ fontSize:12, color:'#64748b', marginBottom:8 }}>{sub.description}</div>}
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <div style={{ fontSize:20, fontWeight:800, color:'#0f172a' }}>৳{(sub.amount||0).toLocaleString()}</div>
+                    <div style={{ fontSize:11, color:'#94a3b8' }}>Due: {sub.deadline}</div>
+                  </div>
+                  {!myPay && (
+                    <Link href="/installment" style={{ display:'block', marginTop:12, textAlign:'center', padding:'7px 0', borderRadius:8, background:'#eff6ff', color:'#2563eb', fontSize:12, fontWeight:600, textDecoration:'none' }}>
+                      Pay Now →
+                    </Link>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(280px, 1fr))', gap:16 }}>
         {/* Progress */}

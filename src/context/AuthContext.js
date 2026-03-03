@@ -1,8 +1,9 @@
+// src/context/AuthContext.js
 'use client';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { useRouter, usePathname } from 'next/navigation';
 
 const AuthContext = createContext({});
@@ -11,17 +12,49 @@ const PUBLIC = [
   '/', '/login', '/register', '/forgot-password',
   '/select-org', '/create-org', '/join',
   '/pending-approval', '/org-pending',
-  '/superadmin', // superadmin has no org, must not redirect
+  '/superadmin',
 ];
 
+// accessMode stored in localStorage:
+//   'superadmin' → platform view (default for superadmins)
+//   'org'        → acting inside a specific org as admin/member
+
 export const AuthProvider = ({ children }) => {
-  const [user, setUser]             = useState(null);
-  const [userData, setUserData]     = useState(null);
-  const [orgData, setOrgData]       = useState(null);
-  const [membership, setMembership] = useState(null);
-  const [loading, setLoading]       = useState(true);
+  const [user, setUser]               = useState(null);
+  const [userData, setUserData]       = useState(null);
+  const [orgData, setOrgData]         = useState(null);
+  const [membership, setMembership]   = useState(null);
+  const [loading, setLoading]         = useState(true);
+  const [accessMode, setAccessModeState] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('dt_access_mode') || 'superadmin';
+    }
+    return 'superadmin';
+  });
+
   const router   = useRouter();
   const pathname = usePathname();
+
+  const setAccessMode = (mode) => {
+    setAccessModeState(mode);
+    if (typeof window !== 'undefined') localStorage.setItem('dt_access_mode', mode);
+  };
+
+  // Called from Sidebar or anywhere — superadmin enters an org
+  const switchToOrgMode = async (orgId) => {
+    if (orgId && user) {
+      // Update activeOrgId so the effect loads the right org
+      await setDoc(doc(db, 'users', user.uid), { activeOrgId: orgId }, { merge: true });
+    }
+    setAccessMode('org');
+    router.push('/dashboard');
+  };
+
+  // Return to platform view
+  const switchToSuperAdminMode = () => {
+    setAccessMode('superadmin');
+    router.push('/superadmin');
+  };
 
   useEffect(() => {
     let unsubUser = null;
@@ -49,8 +82,17 @@ export const AuthProvider = ({ children }) => {
         const uData = uSnap.data();
         setUserData(uData);
 
-        if (uData.role === 'superadmin') { setLoading(false); return; }
+        const isSA = uData.role === 'superadmin';
 
+        // Superadmin in platform mode — skip org loading entirely
+        if (isSA && accessMode === 'superadmin') {
+          setOrgData(null);
+          setMembership(null);
+          setLoading(false);
+          return;
+        }
+
+        // Regular user OR superadmin in org mode — load org + membership
         if (uData.activeOrgId) {
           if (unsubOrg) { unsubOrg(); unsubOrg = null; }
           if (unsubMem) { unsubMem(); unsubMem = null; }
@@ -59,9 +101,8 @@ export const AuthProvider = ({ children }) => {
             if (orgSnap.exists()) {
               const oData = { id: orgSnap.id, ...orgSnap.data() };
               setOrgData(oData);
-              // Only redirect to org-pending if org is pending AND user is NOT the creator/admin
-              // (admin needs to see pending page; members can't access a pending org at all)
-              if (oData.status === 'pending' && !isPublic && pathname !== '/org-pending') {
+              // Superadmin in org mode can access even pending orgs — no redirect
+              if (!isSA && oData.status === 'pending' && !isPublic && pathname !== '/org-pending') {
                 router.push('/org-pending');
               }
             }
@@ -73,20 +114,22 @@ export const AuthProvider = ({ children }) => {
               if (mSnap.exists()) {
                 const mData = { id: mSnap.id, ...mSnap.data() };
                 setMembership(mData);
-
-                // If member not yet approved, redirect to pending-approval
-                if (!mData.approved && !isPublic && pathname !== '/pending-approval') {
+                // Superadmin never gets blocked by pending approval
+                if (!isSA && !mData.approved && !isPublic && pathname !== '/pending-approval') {
                   router.push('/pending-approval');
                 }
               } else {
+                // Superadmin may not be a formal member — still OK
                 setMembership(null);
               }
               setLoading(false);
             }
           );
         } else {
-          setOrgData(null); setMembership(null);
-          if (!isPublic) router.push('/select-org');
+          setOrgData(null);
+          setMembership(null);
+          if (!isSA && !isPublic) router.push('/select-org');
+          if (isSA && accessMode === 'org') router.push('/select-org');
           setLoading(false);
         }
       }, (err) => {
@@ -101,10 +144,13 @@ export const AuthProvider = ({ children }) => {
       if (unsubOrg)  unsubOrg();
       if (unsubMem)  unsubMem();
     };
-  }, [pathname]);
+  }, [pathname, accessMode]); // re-run when accessMode changes
 
   const isSuperAdmin = userData?.role === 'superadmin';
-  const isOrgAdmin   = membership?.role === 'admin';
+
+  // In org mode superadmin acts as admin for the selected org
+  // (Firestore rules already allow superadmin to do all writes)
+  const isOrgAdmin = membership?.role === 'admin' || (isSuperAdmin && accessMode === 'org');
 
   if (loading) return (
     <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:'#f8fafc' }}>
@@ -115,7 +161,13 @@ export const AuthProvider = ({ children }) => {
   );
 
   return (
-    <AuthContext.Provider value={{ user, userData, orgData, membership, loading, isSuperAdmin, isOrgAdmin }}>
+    <AuthContext.Provider value={{
+      user, userData, orgData, membership, loading,
+      isSuperAdmin, isOrgAdmin,
+      accessMode,
+      switchToOrgMode,
+      switchToSuperAdminMode,
+    }}>
       {children}
     </AuthContext.Provider>
   );
