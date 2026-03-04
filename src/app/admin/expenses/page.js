@@ -44,7 +44,7 @@ const MODAL_STYLES = `
     to   { transform: translateY(0);    opacity: 1; }
   }
   @media (min-width: 769px) {
-    .exp-overlay { align-items: center; padding: 24px; }
+    .exp-overlay { align-items: center; padding: 64px; margin-top: 40vh; }
     .exp-sheet {
       max-width: 520px; max-height: 90vh;
       border-radius: 16px;

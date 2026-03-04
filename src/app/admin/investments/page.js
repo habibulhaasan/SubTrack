@@ -40,7 +40,11 @@ const MODAL_STYLES = `
     to   { transform: translateY(0);    opacity: 1; }
   }
   @media (min-width: 769px) {
-    .inv-overlay { align-items: center; padding: 24px; }
+    .inv-overlay { 
+      align-items: center; 
+      padding: 24px; 
+      margin-top: 40vh;  
+    }
     .inv-sheet { max-width: 520px; max-height: 90vh; border-radius: 16px; animation: invPop .2s ease both; }
     .inv-handle { display: none; }
     .inv-body { padding: 28px 28px 32px; }

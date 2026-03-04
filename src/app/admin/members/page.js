@@ -44,6 +44,7 @@ const MODAL_STYLES = `
       top: 0;
       align-items: center;
       padding: 24px;
+      margin-top: 40vh; 
     }
     .mem-sheet {
       max-width: 500px;
