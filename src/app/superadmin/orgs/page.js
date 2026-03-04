@@ -23,7 +23,7 @@ const SHEET_STYLES = `
   .org-body { padding: 16px 20px 48px; }
   @keyframes orgUp { from { transform:translateY(100%); opacity:0; } to { transform:translateY(0); opacity:1; } }
   @media (min-width: 769px) {
-    .org-overlay { align-items: center; padding: 24px; }
+    .org-overlay { align-items: center; padding: 24px; padding-left: calc(240px + 24px); }
     .org-sheet { max-width: 460px; max-height: 88vh; border-radius: 16px; animation: orgPop .2s ease both; }
     .org-handle { display: none; }
     .org-body { padding: 24px 28px 36px; }

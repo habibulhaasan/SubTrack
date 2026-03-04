@@ -1,107 +1,33 @@
+// src/app/admin/investments/page.js
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
+import Modal from '@/components/Modal';
 
 const EMPTY = { sector:'', amount:'', investmentDate:'', maturityDate:'', notes:'' };
 
-const MODAL_STYLES = `
-  .inv-overlay {
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,.5);
-    z-index: 9000;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    padding-top: 56px;
-  }
-  .inv-sheet {
-    background: #fff;
-    width: 100%;
-    max-height: calc(100vh - 56px);
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    border-radius: 20px 20px 0 0;
-    display: flex;
-    flex-direction: column;
-    animation: invUp .25s cubic-bezier(.32,1,.32,1) both;
-  }
-  .inv-handle {
-    width: 40px; height: 4px;
-    background: #e2e8f0; border-radius: 99px;
-    margin: 12px auto 0; flex-shrink: 0;
-  }
-  .inv-body { padding: 16px 20px 44px; }
-  .inv-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-  .inv-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
-  @keyframes invUp {
-    from { transform: translateY(100%); opacity: 0; }
-    to   { transform: translateY(0);    opacity: 1; }
-  }
-  @media (min-width: 769px) {
-    .inv-overlay { 
-      align-items: center; 
-      padding: 24px; 
-      margin-top: 40vh;  
-    }
-    .inv-sheet { max-width: 520px; max-height: 90vh; border-radius: 16px; animation: invPop .2s ease both; }
-    .inv-handle { display: none; }
-    .inv-body { padding: 28px 28px 32px; }
-  }
-  @keyframes invPop {
-    from { transform: scale(.96) translateY(8px); opacity: 0; }
-    to   { transform: scale(1)   translateY(0);   opacity: 1; }
-  }
-  @media (max-width: 380px) { .inv-row2 { grid-template-columns: 1fr; } }
-`;
-
-function Modal({ title, onClose, children }) {
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
-  }, []);
-  return (
-    <>
-      <style>{MODAL_STYLES}</style>
-      <div className="inv-overlay" onClick={onClose}>
-        <div className="inv-sheet" onClick={e => e.stopPropagation()}>
-          <div className="inv-handle" />
-          <div className="inv-body">
-            <div className="inv-head">
-              <h3 style={{ fontSize:16, fontWeight:700, color:'#0f172a', margin:0 }}>{title}</h3>
-              <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:28, lineHeight:1, padding:'0 0 0 12px' }}>×</button>
-            </div>
-            {children}
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
-
 export default function AdminInvestments() {
   const { userData, orgData } = useAuth();
-  const [items, setItems]           = useState([]);
-  const [totalFund, setTotalFund]   = useState(0);
-  const [totalSpent, setTotalSpent] = useState(0);
-  const [form, setForm]             = useState(EMPTY);
-  const [modal, setModal]           = useState(null);  // null | 'add' | item obj
-  const [settleModal, setSettleModal] = useState(null); // item to settle
+  const [items, setItems]               = useState([]);
+  const [totalFund, setTotalFund]       = useState(0);
+  const [totalSpent, setTotalSpent]     = useState(0);
+  const [form, setForm]                 = useState(EMPTY);
+  const [modal, setModal]               = useState(null);
+  const [settleModal, setSettleModal]   = useState(null);
   const [settleAmount, setSettleAmount] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [settling, setSettling]     = useState(false);
-  const [error, setError]           = useState('');
+  const [submitting, setSubmitting]     = useState(false);
+  const [settling, setSettling]         = useState(false);
+  const [error, setError]               = useState('');
   const orgId = userData?.activeOrgId;
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
-  // Helper: send notification to all approved members
   const notifyAll = async (message) => {
     if (!orgId) return;
     try {
       const mSnap = await getDocs(collection(db, 'organizations', orgId, 'members'));
-      const approved = mSnap.docs.filter(d => d.data().approved);
-      await Promise.all(approved.map(d =>
+      await Promise.all(mSnap.docs.filter(d=>d.data().approved).map(d =>
         addDoc(collection(db, 'organizations', orgId, 'notifications'), {
           userId: d.id, message, read: false, createdAt: serverTimestamp(),
         })
@@ -140,13 +66,8 @@ export default function AdminInvestments() {
     setError('');
     setModal(item);
   };
-  const closeModal = useCallback(() => setModal(null), []);
-
-  const openSettle = (item) => {
-    setSettleAmount('');
-    setSettleModal(item);
-    setModal(null); // close edit modal
-  };
+  const closeModal  = useCallback(() => setModal(null), []);
+  const openSettle  = (item) => { setSettleAmount(''); setSettleModal(item); setModal(null); };
   const closeSettle = () => setSettleModal(null);
 
   const handleSave = async e => {
@@ -181,9 +102,7 @@ export default function AdminInvestments() {
       await updateDoc(doc(db,'organizations',orgId,'deployments',settleModal.id), {
         status:'matured', profitGenerated:num, settledAt:serverTimestamp(),
       });
-      const resultText = num >= 0
-        ? `Profit: ৳${num.toLocaleString()}`
-        : `Loss: ৳${Math.abs(num).toLocaleString()}`;
+      const resultText = num >= 0 ? `Profit: ৳${num.toLocaleString()}` : `Loss: ৳${Math.abs(num).toLocaleString()}`;
       await notifyAll(`🏁 Project "${settleModal.sector}" has been settled. ${resultText}`);
       setSettleModal(null);
     } catch(e) { alert(e.message); }
@@ -251,11 +170,9 @@ export default function AdminInvestments() {
           </div></div>
       }
 
-      {/* Edit / Add Modal */}
       {modal && (
         <Modal title={!isEdit ? 'Add Project' : form.sector} onClose={closeModal}>
           {error && <div className="alert alert-error">{error}</div>}
-
           {isEdit && (
             <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:16 }}>
               <span className={`badge ${statusBadge(modal.status)}`}>{modal.status}</span>
@@ -266,13 +183,11 @@ export default function AdminInvestments() {
               )}
             </div>
           )}
-
           <form onSubmit={handleSave}>
             <div className="form-group">
               <label className="form-label">Sector / Project Name *</label>
               <input value={form.sector} onChange={e=>set('sector',e.target.value)} placeholder="e.g. Real Estate" required />
             </div>
-
             {!isEdit
               ? <div className="form-group">
                   <label className="form-label">Amount * <span style={{ fontWeight:400, textTransform:'none', color:'#94a3b8', fontSize:10 }}>Available: ৳{available.toLocaleString()}</span></label>
@@ -283,8 +198,7 @@ export default function AdminInvestments() {
                   <input value={`৳${modal.amount?.toLocaleString()}`} disabled style={{ opacity:.6 }} />
                 </div>
             }
-
-            <div className="inv-row2">
+            <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Start Date</label>
                 <input type="date" value={form.investmentDate} onChange={e=>set('investmentDate',e.target.value)} />
@@ -294,12 +208,10 @@ export default function AdminInvestments() {
                 <input type="date" value={form.maturityDate} onChange={e=>set('maturityDate',e.target.value)} />
               </div>
             </div>
-
             <div className="form-group">
               <label className="form-label">Notes</label>
               <textarea rows={2} value={form.notes} onChange={e=>set('notes',e.target.value)} placeholder="Optional" style={{ resize:'vertical' }} />
             </div>
-
             <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:4 }}>
               {isEdit && modal.status !== 'matured' && (
                 <button type="button" onClick={() => openSettle(modal)}
@@ -307,9 +219,7 @@ export default function AdminInvestments() {
                   Settle
                 </button>
               )}
-              {isEdit && (
-                <button type="button" onClick={() => handleDelete(modal.id)} className="btn-danger">Delete</button>
-              )}
+              {isEdit && <button type="button" onClick={() => handleDelete(modal.id)} className="btn-danger">Delete</button>}
               <button type="submit" disabled={submitting} className="btn-primary" style={{ flex:1, justifyContent:'center' }}>
                 {submitting ? 'Saving…' : !isEdit ? 'Add Project' : 'Save Changes'}
               </button>
@@ -318,7 +228,6 @@ export default function AdminInvestments() {
         </Modal>
       )}
 
-      {/* Settlement Modal */}
       {settleModal && (
         <Modal title={`Settle: ${settleModal.sector}`} onClose={closeSettle}>
           <div className="alert alert-info" style={{ marginBottom:16 }}>

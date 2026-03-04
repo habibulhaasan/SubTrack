@@ -1,90 +1,13 @@
+// src/app/admin/expenses/page.js
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, serverTimestamp, orderBy, query, getDocs } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
+import Modal from '@/components/Modal';
 
 const CATS  = ['Operations','Event','Maintenance','Charity','Salary','Utilities','Other'];
 const EMPTY = { title:'', amount:'', date:'', category:'', notes:'' };
-
-const MODAL_STYLES = `
-  .exp-overlay {
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,.5);
-    z-index: 9000;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    padding-top: 56px;
-  }
-  .exp-sheet {
-    background: #fff;
-    width: 100%;
-    max-height: calc(100vh - 56px);
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    border-radius: 20px 20px 0 0;
-    display: flex;
-    flex-direction: column;
-    animation: expUp .25s cubic-bezier(.32,1,.32,1) both;
-  }
-  .exp-handle {
-    width: 40px; height: 4px;
-    background: #e2e8f0; border-radius: 99px;
-    margin: 12px auto 0; flex-shrink: 0;
-  }
-  .exp-body { padding: 16px 20px 44px; }
-  .exp-head {
-    display: flex; justify-content: space-between;
-    align-items: center; margin-bottom: 20px;
-  }
-  .exp-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
-  @keyframes expUp {
-    from { transform: translateY(100%); opacity: 0; }
-    to   { transform: translateY(0);    opacity: 1; }
-  }
-  @media (min-width: 769px) {
-    .exp-overlay { align-items: center; padding: 64px; margin-top: 40vh; }
-    .exp-sheet {
-      max-width: 520px; max-height: 90vh;
-      border-radius: 16px;
-      animation: expPop .2s ease both;
-    }
-    .exp-handle { display: none; }
-    .exp-body { padding: 28px 28px 32px; }
-  }
-  @keyframes expPop {
-    from { transform: scale(.96) translateY(8px); opacity: 0; }
-    to   { transform: scale(1)   translateY(0);   opacity: 1; }
-  }
-  @media (max-width: 380px) {
-    .exp-row2 { grid-template-columns: 1fr; }
-  }
-`;
-
-function Modal({ title, onClose, children }) {
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
-  }, []);
-  return (
-    <>
-      <style>{MODAL_STYLES}</style>
-      <div className="exp-overlay" onClick={onClose}>
-        <div className="exp-sheet" onClick={e => e.stopPropagation()}>
-          <div className="exp-handle" />
-          <div className="exp-body">
-            <div className="exp-head">
-              <h3 style={{ fontSize:16, fontWeight:700, color:'#0f172a', margin:0 }}>{title}</h3>
-              <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:28, lineHeight:1, padding:'0 0 0 12px' }}>×</button>
-            </div>
-            {children}
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
 
 export default function AdminExpenses() {
   const { userData, orgData } = useAuth();
@@ -95,7 +18,7 @@ export default function AdminExpenses() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState('');
   const orgId = userData?.activeOrgId;
-  const set = (k,v) => setForm(p => ({ ...p, [k]:v }));
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   useEffect(() => {
     if (!orgId) return;
@@ -111,7 +34,6 @@ export default function AdminExpenses() {
   const available  = totalFund - totalSpent;
   const isEdit     = modal && modal !== 'add';
 
-  // Send notification to all approved members
   const notifyAll = async (message) => {
     if (!orgId) return;
     try {
@@ -124,8 +46,8 @@ export default function AdminExpenses() {
     } catch(e) { console.error('Notification error:', e); }
   };
 
-  const openAdd  = () => { setForm({...EMPTY, date:new Date().toISOString().slice(0,10)}); setError(''); setModal('add'); };
-  const openView = item => { setForm({ title:item.title, amount:item.amount, date:item.date||'', category:item.category||'', notes:item.notes||'' }); setError(''); setModal(item); };
+  const openAdd    = () => { setForm({...EMPTY, date:new Date().toISOString().slice(0,10)}); setError(''); setModal('add'); };
+  const openView   = item => { setForm({ title:item.title, amount:item.amount, date:item.date||'', category:item.category||'', notes:item.notes||'' }); setError(''); setModal(item); };
   const closeModal = useCallback(() => setModal(null), []);
 
   const handleSave = async e => {
@@ -211,7 +133,6 @@ export default function AdminExpenses() {
               <label className="form-label">Title *</label>
               <input value={form.title} onChange={e=>set('title',e.target.value)} placeholder="What was this expense for?" required />
             </div>
-
             <div className="form-group">
               <label className="form-label">
                 Amount *
@@ -219,8 +140,7 @@ export default function AdminExpenses() {
               </label>
               <input type="number" min="1" value={form.amount} onChange={e=>set('amount',e.target.value)} placeholder="0" required />
             </div>
-
-            <div className="exp-row2">
+            <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Date</label>
                 <input type="date" value={form.date} onChange={e=>set('date',e.target.value)} />
@@ -233,12 +153,10 @@ export default function AdminExpenses() {
                 </select>
               </div>
             </div>
-
             <div className="form-group">
               <label className="form-label">Notes</label>
               <textarea rows={2} value={form.notes} onChange={e=>set('notes',e.target.value)} placeholder="Optional details" style={{ resize:'vertical' }} />
             </div>
-
             <div style={{ display:'flex', gap:8, marginTop:4 }}>
               {isEdit && <button type="button" onClick={() => handleDelete(modal.id)} className="btn-danger">Delete</button>}
               <button type="submit" disabled={submitting} className="btn-primary" style={{ flex:1, justifyContent:'center' }}>

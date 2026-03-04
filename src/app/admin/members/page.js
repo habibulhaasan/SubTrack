@@ -1,65 +1,12 @@
+// src/app/admin/members/page.js
 'use client';
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, doc, updateDoc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
+import Modal from '@/components/Modal';
 
 const initials = n => (n||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-
-const MODAL_STYLES = `
-  .mem-overlay {
-    position: fixed;
-    inset: 0;
-    top: 56px;
-    background: rgba(0,0,0,.55);
-    z-index: 9000;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-  }
-  .mem-sheet {
-    background: #fff;
-    width: 100%;
-    max-height: calc(100vh - 80px);
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    border-radius: 20px 20px 0 0;
-    animation: memUp .28s cubic-bezier(.32,1,.32,1) both;
-  }
-  .mem-handle {
-    width: 40px; height: 4px;
-    background: #cbd5e1; border-radius: 99px;
-    margin: 12px auto 4px; flex-shrink: 0;
-  }
-  .mem-body {
-    padding: 8px 20px 40px;
-  }
-  .mem-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-  @keyframes memUp {
-    from { transform: translateY(100%); }
-    to   { transform: translateY(0); }
-  }
-  @media (min-width: 769px) {
-    .mem-overlay {
-      top: 0;
-      align-items: center;
-      padding: 24px;
-      margin-top: 40vh; 
-    }
-    .mem-sheet {
-      max-width: 500px;
-      max-height: 88vh;
-      border-radius: 16px;
-      animation: memPop .2s ease both;
-    }
-    .mem-handle { display: none; }
-    .mem-body { padding: 20px 28px 32px; }
-  }
-  @keyframes memPop {
-    from { transform: scale(.96) translateY(8px); opacity: 0; }
-    to   { transform: scale(1) translateY(0); opacity: 1; }
-  }
-`;
 
 function Avatar({ m, size=36 }) {
   return (
@@ -71,10 +18,6 @@ function Avatar({ m, size=36 }) {
 
 function MemberModal({ member, onClose, onToggleApproval, onSaveId, settings, nextId, saving }) {
   const [idEdit, setIdEdit] = useState(member.idNo || '');
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
-  }, []);
 
   const InfoRow = ({ label, value }) => !value ? null : (
     <div style={{ display:'flex', justifyContent:'space-between', gap:12, fontSize:13, padding:'8px 0', borderBottom:'1px solid #f1f5f9' }}>
@@ -84,63 +27,50 @@ function MemberModal({ member, onClose, onToggleApproval, onSaveId, settings, ne
   );
 
   return (
-    <>
-      <style>{MODAL_STYLES}</style>
-      <div className="mem-overlay" onClick={onClose}>
-        <div className="mem-sheet" onClick={e => e.stopPropagation()}>
-          <div className="mem-handle" />
-          <div className="mem-body">
-            <div className="mem-head">
-              <span style={{ fontWeight:700, fontSize:15, color:'#0f172a' }}>Member Profile</span>
-              <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:28, lineHeight:1, padding:'0 0 0 12px' }}>×</button>
-            </div>
-
-            <div style={{ textAlign:'center', marginBottom:20 }}>
-              <Avatar m={member} size={64} />
-              <div style={{ marginTop:10, fontWeight:700, fontSize:17 }}>{member.nameEnglish || '(no name)'}</div>
-              {member.nameBengali && <div style={{ fontSize:13, color:'#64748b', marginTop:2 }}>{member.nameBengali}</div>}
-              <div style={{ display:'flex', gap:6, justifyContent:'center', marginTop:10 }}>
-                <span className={`badge ${member.approved?'badge-green':'badge-yellow'}`}>{member.approved?'Approved':'Pending'}</span>
-                <span className={`badge ${member.role==='admin'?'badge-blue':'badge-gray'}`}>{member.role||'member'}</span>
-              </div>
-            </div>
-
-            <div style={{ marginBottom:16 }}>
-              <label className="form-label">
-                Member ID
-                {settings.autoMemberId && <span style={{ fontWeight:400, textTransform:'none', marginLeft:4, color:'#94a3b8' }}>(auto on approve)</span>}
-              </label>
-              <div style={{ display:'flex', gap:8 }}>
-                <input value={idEdit} onChange={e=>setIdEdit(e.target.value)}
-                  placeholder={settings.autoMemberId ? `Next: ${nextId}` : 'e.g. M-001'}
-                  style={{ flex:1 }} />
-                <button onClick={() => onSaveId(member.id, idEdit)} disabled={saving===member.id+'_id'}
-                  className="btn-primary" style={{ padding:'10px 14px' }}>
-                  {saving===member.id+'_id' ? '…' : 'Save'}
-                </button>
-              </div>
-            </div>
-
-            <InfoRow label="Email"       value={member.email} />
-            <InfoRow label="Phone"       value={member.phone} />
-            <InfoRow label="Blood Group" value={member.bloodGroup} />
-            <InfoRow label="NID"         value={member.nid} />
-            <InfoRow label="Occupation"  value={member.occupation} />
-            <InfoRow label="DOB"         value={member.dob} />
-            <InfoRow label="Father"      value={member.fatherName} />
-            <InfoRow label="Address"     value={member.address} />
-
-            <button onClick={() => onToggleApproval(member)} disabled={saving===member.id}
-              style={{ width:'100%', marginTop:18, padding:'12px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:600, fontSize:14,
-                background: member.approved ? '#fee2e2' : '#dcfce7',
-                color:      member.approved ? '#b91c1c' : '#15803d',
-                opacity: saving===member.id ? .6 : 1 }}>
-              {saving===member.id ? '…' : member.approved ? 'Suspend Member' : 'Approve Member'}
-            </button>
-          </div>
+    <Modal title="Member Profile" onClose={onClose}>
+      <div style={{ textAlign:'center', marginBottom:20 }}>
+        <Avatar m={member} size={64} />
+        <div style={{ marginTop:10, fontWeight:700, fontSize:17 }}>{member.nameEnglish || '(no name)'}</div>
+        {member.nameBengali && <div style={{ fontSize:13, color:'#64748b', marginTop:2 }}>{member.nameBengali}</div>}
+        <div style={{ display:'flex', gap:6, justifyContent:'center', marginTop:10 }}>
+          <span className={`badge ${member.approved?'badge-green':'badge-yellow'}`}>{member.approved?'Approved':'Pending'}</span>
+          <span className={`badge ${member.role==='admin'?'badge-blue':'badge-gray'}`}>{member.role||'member'}</span>
         </div>
       </div>
-    </>
+
+      <div style={{ marginBottom:16 }}>
+        <label className="form-label">
+          Member ID
+          {settings.autoMemberId && <span style={{ fontWeight:400, textTransform:'none', marginLeft:4, color:'#94a3b8' }}>(auto on approve)</span>}
+        </label>
+        <div style={{ display:'flex', gap:8 }}>
+          <input value={idEdit} onChange={e=>setIdEdit(e.target.value)}
+            placeholder={settings.autoMemberId ? `Next: ${nextId}` : 'e.g. M-001'}
+            style={{ flex:1 }} />
+          <button onClick={() => onSaveId(member.id, idEdit)} disabled={saving===member.id+'_id'}
+            className="btn-primary" style={{ padding:'10px 14px' }}>
+            {saving===member.id+'_id' ? '…' : 'Save'}
+          </button>
+        </div>
+      </div>
+
+      <InfoRow label="Email"       value={member.email} />
+      <InfoRow label="Phone"       value={member.phone} />
+      <InfoRow label="Blood Group" value={member.bloodGroup} />
+      <InfoRow label="NID"         value={member.nid} />
+      <InfoRow label="Occupation"  value={member.occupation} />
+      <InfoRow label="DOB"         value={member.dob} />
+      <InfoRow label="Father"      value={member.fatherName} />
+      <InfoRow label="Address"     value={member.address} />
+
+      <button onClick={() => onToggleApproval(member)} disabled={saving===member.id}
+        style={{ width:'100%', marginTop:18, padding:'12px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:600, fontSize:14,
+          background: member.approved ? '#fee2e2' : '#dcfce7',
+          color:      member.approved ? '#b91c1c' : '#15803d',
+          opacity: saving===member.id ? .6 : 1 }}>
+        {saving===member.id ? '…' : member.approved ? 'Suspend Member' : 'Approve Member'}
+      </button>
+    </Modal>
   );
 }
 
@@ -238,18 +168,10 @@ export default function AdminMembers() {
         </div>
       </div>
 
-      {/* Table */}
       <div className="table-wrap"><div className="table-scroll">
         <table>
           <thead>
-            <tr>
-              <th>Member</th>
-              <th>ID</th>
-              <th>Phone</th>
-              <th>Role</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
+            <tr><th>Member</th><th>ID</th><th>Phone</th><th>Role</th><th>Status</th><th>Action</th></tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
@@ -267,20 +189,10 @@ export default function AdminMembers() {
                 </td>
                 <td style={{ fontSize:12, color:'#475569', fontFamily:'monospace' }}>{m.idNo||'—'}</td>
                 <td style={{ fontSize:12, color:'#475569' }}>{m.phone||'—'}</td>
-                <td>
-                  <span className={`badge ${m.role==='admin'?'badge-blue':'badge-gray'}`} style={{ fontSize:10, textTransform:'capitalize' }}>
-                    {m.role||'member'}
-                  </span>
-                </td>
-                <td>
-                  <span className={`badge ${m.approved?'badge-green':'badge-yellow'}`} style={{ fontSize:10 }}>
-                    {m.approved?'Approved':'Pending'}
-                  </span>
-                </td>
+                <td><span className={`badge ${m.role==='admin'?'badge-blue':'badge-gray'}`} style={{ fontSize:10, textTransform:'capitalize' }}>{m.role||'member'}</span></td>
+                <td><span className={`badge ${m.approved?'badge-green':'badge-yellow'}`} style={{ fontSize:10 }}>{m.approved?'Approved':'Pending'}</span></td>
                 <td onClick={e => e.stopPropagation()}>
-                  <button
-                    onClick={() => toggleApproval(m)}
-                    disabled={saving===m.id}
+                  <button onClick={() => toggleApproval(m)} disabled={saving===m.id}
                     style={{ padding:'4px 12px', fontSize:11, fontWeight:600, borderRadius:6, border:'none', cursor:'pointer', whiteSpace:'nowrap',
                       background: m.approved ? '#fee2e2' : '#dcfce7',
                       color:      m.approved ? '#b91c1c' : '#15803d',

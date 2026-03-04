@@ -4,36 +4,21 @@ import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
+import Modal from '@/components/Modal';
 
-const EMPTY = { recipient:'', purpose:'', amount:'', date:'', notes:'', receiptUrl:'' };
+const EMPTY    = { recipient:'', purpose:'', amount:'', date:'', notes:'', receiptUrl:'' };
 const PURPOSES = ['Education','Medical Aid','Disaster Relief','Food Aid','Infrastructure','Religious','Other'];
-
-const SHEET = `
-  .ch-overlay { position:fixed; inset:0; top:56px; background:rgba(0,0,0,.55); z-index:9000; display:flex; align-items:flex-end; justify-content:center; }
-  .ch-sheet   { background:#fff; width:100%; max-height:calc(100vh - 80px); overflow-y:auto; border-radius:20px 20px 0 0; animation:chUp .25s cubic-bezier(.32,1,.32,1) both; }
-  .ch-handle  { width:40px; height:4px; background:#cbd5e1; border-radius:99px; margin:12px auto 4px; }
-  .ch-body    { padding:8px 20px 40px; }
-  @keyframes chUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
-  @media(min-width:769px){
-    .ch-overlay{ top:0; align-items:center; padding:24px; }
-    .ch-sheet  { max-width:480px; max-height:88vh; border-radius:16px; animation:chPop .2s ease both; }
-    .ch-handle { display:none; }
-    .ch-body   { padding:20px 28px 32px; }
-  }
-  @keyframes chPop{ from{transform:scale(.96);opacity:0} to{transform:scale(1);opacity:1} }
-`;
-
-function fmt(n) { return `৳${(n||0).toLocaleString(undefined, { maximumFractionDigits:0 })}`; }
+const fmt = n => `৳${(n||0).toLocaleString(undefined, { maximumFractionDigits:0 })}`;
 
 export default function AdminCharity() {
   const { userData, orgData, isOrgAdmin } = useAuth();
   const orgId = userData?.activeOrgId;
 
-  const [records, setRecords] = useState([]);
-  const [form,    setForm]    = useState(EMPTY);
-  const [open,    setOpen]    = useState(false);
-  const [saving,  setSaving]  = useState(false);
-  const [search,  setSearch]  = useState('');
+  const [records,  setRecords]  = useState([]);
+  const [form,     setForm]     = useState(EMPTY);
+  const [open,     setOpen]     = useState(false);
+  const [saving,   setSaving]   = useState(false);
+  const [search,   setSearch]   = useState('');
   const [deleting, setDeleting] = useState(null);
 
   useEffect(() => {
@@ -73,7 +58,6 @@ export default function AdminCharity() {
   const totalCharity = records.reduce((s,r) => s+(r.amount||0), 0);
 
   if (!isOrgAdmin) return <div className="page-wrap"><div style={{textAlign:'center',padding:80,color:'#94a3b8'}}>Admin only.</div></div>;
-
   if (!orgData?.features?.charityTracking) return (
     <div className="page-wrap">
       <div style={{ textAlign:'center', padding:80 }}>
@@ -86,8 +70,6 @@ export default function AdminCharity() {
 
   return (
     <div className="page-wrap animate-fade">
-      <style>{SHEET}</style>
-
       <div className="page-header" style={{ display:'flex', alignItems:'center', gap:14 }}>
         {orgData?.logoURL && <div style={{ width:44, height:44, borderRadius:10, overflow:'hidden', flexShrink:0, border:'1px solid #e2e8f0' }}><img src={orgData.logoURL} style={{ width:'100%', height:'100%', objectFit:'cover' }} alt="" /></div>}
         <div style={{ flex:1 }}>
@@ -97,12 +79,11 @@ export default function AdminCharity() {
         <button onClick={() => setOpen(true)} className="btn-primary" style={{ padding:'9px 18px', fontSize:13, flexShrink:0 }}>+ Add Record</button>
       </div>
 
-      {/* Summary */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))', gap:12, marginBottom:20 }}>
         {[
-          ['Total Given',   fmt(totalCharity),           '#dc2626'],
-          ['Records',       records.length,              '#0f172a'],
-          ['This Year',     fmt(records.filter(r => (r.date||'').startsWith(new Date().getFullYear())).reduce((s,r)=>s+(r.amount||0),0)), '#d97706'],
+          ['Total Given',  fmt(totalCharity), '#dc2626'],
+          ['Records',      records.length,    '#0f172a'],
+          ['This Year',    fmt(records.filter(r => (r.date||'').startsWith(new Date().getFullYear())).reduce((s,r)=>s+(r.amount||0),0)), '#d97706'],
         ].map(([l,v,c]) => (
           <div key={l} className="stat-card">
             <div className="stat-label">{l}</div>
@@ -115,7 +96,6 @@ export default function AdminCharity() {
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search recipient or purpose…" style={{ flex:1 }} />
       </div>
 
-      {/* Records */}
       {filtered.length === 0 ? (
         <div className="card" style={{ textAlign:'center', padding:48, color:'#94a3b8' }}>
           No charity records yet. Click "+ Add Record" to log a donation.
@@ -148,39 +128,29 @@ export default function AdminCharity() {
         </div>
       )}
 
-      {/* Add modal */}
       {open && (
-        <div className="ch-overlay" onClick={() => setOpen(false)}>
-          <div className="ch-sheet" onClick={e => e.stopPropagation()}>
-            <div className="ch-handle" />
-            <div className="ch-body">
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:18 }}>
-                <div style={{ fontWeight:700, fontSize:15 }}>Add Charity Record</div>
-                <button onClick={() => setOpen(false)} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:24 }}>×</button>
-              </div>
-              <div className="form-group"><label className="form-label">Recipient / Organization *</label>
-                <input value={form.recipient} onChange={e=>setForm(p=>({...p,recipient:e.target.value}))} placeholder="e.g. Red Crescent" /></div>
-              <div className="form-group"><label className="form-label">Purpose *</label>
-                <select value={form.purpose} onChange={e=>setForm(p=>({...p,purpose:e.target.value}))}>
-                  <option value="">Select purpose…</option>
-                  {PURPOSES.map(p => <option key={p}>{p}</option>)}
-                </select></div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                <div className="form-group"><label className="form-label">Amount *</label>
-                  <input type="number" value={form.amount} onChange={e=>setForm(p=>({...p,amount:e.target.value}))} placeholder="0" /></div>
-                <div className="form-group"><label className="form-label">Date *</label>
-                  <input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} /></div>
-              </div>
-              <div className="form-group"><label className="form-label">Notes</label>
-                <textarea value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} rows={2} placeholder="Optional details…" /></div>
-              <div className="form-group"><label className="form-label">Receipt URL</label>
-                <input value={form.receiptUrl} onChange={e=>setForm(p=>({...p,receiptUrl:e.target.value}))} placeholder="https://…" /></div>
-              <button onClick={save} disabled={saving} className="btn-primary" style={{ width:'100%', justifyContent:'center', marginTop:8 }}>
-                {saving ? 'Saving…' : 'Save Record'}
-              </button>
-            </div>
+        <Modal title="Add Charity Record" onClose={() => setOpen(false)}>
+          <div className="form-group"><label className="form-label">Recipient / Organization *</label>
+            <input value={form.recipient} onChange={e=>setForm(p=>({...p,recipient:e.target.value}))} placeholder="e.g. Red Crescent" /></div>
+          <div className="form-group"><label className="form-label">Purpose</label>
+            <select value={form.purpose} onChange={e=>setForm(p=>({...p,purpose:e.target.value}))}>
+              <option value="">Select purpose…</option>
+              {PURPOSES.map(p => <option key={p}>{p}</option>)}
+            </select></div>
+          <div className="form-row">
+            <div className="form-group"><label className="form-label">Amount *</label>
+              <input type="number" value={form.amount} onChange={e=>setForm(p=>({...p,amount:e.target.value}))} placeholder="0" /></div>
+            <div className="form-group"><label className="form-label">Date *</label>
+              <input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} /></div>
           </div>
-        </div>
+          <div className="form-group"><label className="form-label">Notes</label>
+            <textarea value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} rows={2} placeholder="Optional details…" /></div>
+          <div className="form-group"><label className="form-label">Receipt URL</label>
+            <input value={form.receiptUrl} onChange={e=>setForm(p=>({...p,receiptUrl:e.target.value}))} placeholder="https://…" /></div>
+          <button onClick={save} disabled={saving} className="btn-primary" style={{ width:'100%', justifyContent:'center', marginTop:8 }}>
+            {saving ? 'Saving…' : 'Save Record'}
+          </button>
+        </Modal>
       )}
     </div>
   );
