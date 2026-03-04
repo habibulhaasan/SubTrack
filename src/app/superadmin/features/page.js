@@ -10,33 +10,31 @@ const FEATURES = [
     key: 'profitDistribution',
     label: 'Profit Distribution',
     description: 'Allows admin to split fund balance into categories (profit, investment, charity, reserve, etc.) with % rules.',
-    icon: '📊',
-    color: '#16a34a',
-    bg: '#dcfce7',
+    icon: '📊', color: '#16a34a', bg: '#dcfce7',
   },
   {
     key: 'advancedReports',
     label: 'Advanced Reports',
     description: 'Export detailed financial reports with charts and member-wise breakdown.',
-    icon: '📈',
-    color: '#2563eb',
-    bg: '#dbeafe',
+    icon: '📈', color: '#2563eb', bg: '#dbeafe',
   },
   {
     key: 'charityTracking',
     label: 'Charity Tracking',
     description: 'Track donations sent to charity/external causes with receipts.',
-    icon: '❤️',
-    color: '#dc2626',
-    bg: '#fee2e2',
+    icon: '❤️', color: '#dc2626', bg: '#fee2e2',
   },
   {
     key: 'investmentPortfolio',
     label: 'Investment Portfolio',
     description: 'Full investment tracking with ROI calculations and maturity alerts.',
-    icon: '💹',
-    color: '#d97706',
-    bg: '#fef3c7',
+    icon: '💹', color: '#d97706', bg: '#fef3c7',
+  },
+  {
+    key: 'fileLibrary',
+    label: 'File Library',
+    description: 'Upload and share documents, images, and files with members. Supports categories and descriptions.',
+    icon: '📁', color: '#7c3aed', bg: '#ede9fe',
   },
 ];
 
@@ -62,7 +60,6 @@ export default function SuperAdminFeatures() {
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() }))
         .sort((a, b) => (a.name||'').localeCompare(b.name||''));
       setOrgs(list);
-      // Keep selected org in sync
       setSelOrg(prev => prev ? (list.find(o => o.id === prev.id) || null) : null);
     });
     return unsub;
