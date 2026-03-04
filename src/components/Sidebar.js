@@ -39,6 +39,7 @@ const PATHS = {
   x:          'M18 6L6 18M6 6l12 12',
   switch:     'M8 3L4 7l4 4M4 7h16M16 21l4-4-4-4M20 17H4',
   star:       'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z',
+  folder:     'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z',
   // Distinct icons for items that were duplicated:
   monthlyLedger: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',              // list lines
   distribute:    'M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6',                        // share/split arrows
@@ -173,10 +174,10 @@ export default function Sidebar() {
   const orgFeatures = orgData?.features || {};
 
   const sidebarContent = (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+    <div className="sidebar-inner">
 
-      {/* Logo / header */}
-      <div style={{ padding:'20px 16px 16px', borderBottom:'1px solid #e2e8f0' }}>
+      {/* Logo / header — never scrolls */}
+      <div className="sidebar-header" style={{ padding:'20px 16px 16px', borderBottom:'1px solid #e2e8f0' }}>
         <Link href={inOrgMode ? '/dashboard' : (isSuperAdmin ? '/superadmin' : '/dashboard')}
           style={{ textDecoration:'none', display:'flex', alignItems:'center', gap:'10px' }}>
           <div style={{ width:36, height:36, borderRadius:10, background: inOrgMode ? '#7c3aed' : '#2563eb', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden' }}>
@@ -212,8 +213,8 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* Nav */}
-      <nav style={{ flex:1, overflowY:'auto', padding:'8px' }}>
+      {/* Nav — scrollable */}
+      <nav className="sidebar-nav" style={{ padding:'8px' }}>
 
         {/* SUPERADMIN PLATFORM MODE */}
         {isSuperAdmin && !inOrgMode && (
@@ -249,6 +250,7 @@ export default function Sidebar() {
             <NavItem label="Expenses"        path="/expenses"    icon={PATHS.expenses} pathname={pathname} onClick={closeDrawer} />
             <NavItem label="Projects"        path="/investments" icon={PATHS.invest}   pathname={pathname} onClick={closeDrawer} />
             <NavItem label="My Profile"      path="/profile"     icon={PATHS.profile}  pathname={pathname} onClick={closeDrawer} />
+            {orgFeatures.fileLibrary && <NavItem label="File Library" path="/files"       icon={PATHS.folder}   pathname={pathname} onClick={closeDrawer} />}
 
             {isOrgAdmin && (
               <>
@@ -273,13 +275,14 @@ export default function Sidebar() {
                 <NavItem label="Notifications"    path="/admin/notifications"  icon={PATHS.bell}          pathname={pathname} onClick={closeDrawer} />
 
                 {/* Features section — only if any enabled */}
-                {(orgFeatures.profitDistribution || orgFeatures.advancedReports || orgFeatures.charityTracking || orgFeatures.investmentPortfolio) && (
+                {(orgFeatures.profitDistribution || orgFeatures.advancedReports || orgFeatures.charityTracking || orgFeatures.investmentPortfolio || orgFeatures.fileLibrary) && (
                   <SectionLabel label="Features" />
                 )}
                 {orgFeatures.profitDistribution  && <NavItem label="Distribution" path="/admin/distribution" icon={PATHS.distribute}   pathname={pathname} onClick={closeDrawer} />}
                 {orgFeatures.advancedReports      && <NavItem label="Reports"      path="/admin/reports"      icon={PATHS.reports}      pathname={pathname} onClick={closeDrawer} />}
                 {orgFeatures.charityTracking      && <NavItem label="Charity"      path="/admin/charity"      icon={PATHS.charity}      pathname={pathname} onClick={closeDrawer} />}
                 {orgFeatures.investmentPortfolio  && <NavItem label="Portfolio"    path="/admin/portfolio"    icon={PATHS.portfolio}    pathname={pathname} onClick={closeDrawer} />}
+                {orgFeatures.fileLibrary        && <NavItem label="File Library" path="/admin/files"      icon={PATHS.folder}      pathname={pathname} onClick={closeDrawer} />}
 
                 {/* Config section */}
                 <SectionLabel label="Config" />
@@ -305,8 +308,8 @@ export default function Sidebar() {
         </div>
       )}
 
-      {/* User footer */}
-      <div style={{ padding:'12px 8px', borderTop:'1px solid #e2e8f0', display:'flex', flexDirection:'column', gap:2 }}>
+      {/* User footer — never scrolls */}
+      <div className="sidebar-footer" style={{ padding:'12px 8px', display:'flex', flexDirection:'column', gap:2 }}>
         <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:8 }}>
           <div style={{ width:32, height:32, borderRadius:'50%', background:'#dbeafe', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden' }}>
             {userData?.photoURL
@@ -332,15 +335,13 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Desktop sidebar */}
-      <aside style={{ position:'fixed', left:0, top:0, height:'100vh', width:240, borderRight:'1px solid #e2e8f0', background:'#ffffff', zIndex:50, display:'none' }} className="md-sidebar">
-        <style>{`.md-sidebar { display: block !important; } @media (max-width: 768px) { .md-sidebar { display: none !important; } }`}</style>
+      {/* Desktop sidebar — shown/hidden by globals.css .md-sidebar rules */}
+      <aside style={{ position:'fixed', left:0, top:0, height:'100vh', width:240, borderRight:'1px solid #e2e8f0', background:'#ffffff', zIndex:50 }} className="md-sidebar">
         {sidebarContent}
       </aside>
 
-      {/* Mobile topbar */}
-      <div style={{ position:'fixed', top:0, left:0, right:0, height:56, background:'#ffffff', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 16px', zIndex:60 }} className="mobile-bar">
-        <style>{`.mobile-bar { display: none; } @media (max-width: 768px) { .mobile-bar { display: flex !important; } }`}</style>
+      {/* Mobile topbar — shown/hidden by globals.css .mobile-bar rules */}
+      <div style={{ position:'fixed', top:0, left:0, right:0, height:56, background:'#ffffff', borderBottom:'1px solid #e2e8f0', alignItems:'center', justifyContent:'space-between', padding:'0 16px', zIndex:60 }} className="mobile-bar">
         <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0 }}>
           <div style={{ width:30, height:30, borderRadius:8, background: inOrgMode ? '#7c3aed' : '#2563eb', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden' }}>
             {orgData?.logoURL && (inOrgMode || !isSuperAdmin)
