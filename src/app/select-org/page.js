@@ -1,14 +1,14 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { doc, getDoc, updateDoc, getDocs, collection } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import Link from 'next/link';
-import { db, storage } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 
 export default function SelectOrg() {
-  const { user, userData } = useAuth();
-  const [orgs, setOrgs]       = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { user, userData, orgData } = useAuth();
+  const [orgs, setOrgs]         = useState([]);
+  const [loading, setLoading]   = useState(true);
   const [switching, setSwitching] = useState(null);
 
   useEffect(() => {
@@ -16,24 +16,22 @@ export default function SelectOrg() {
 
     (async () => {
       try {
-        // The user doc stores an array of orgIds they belong to.
-        // If that doesn't exist yet, fall back to scanning known orgIds.
         const orgIds = userData.orgIds || (userData.activeOrgId ? [userData.activeOrgId] : []);
-
         const list = [];
 
         for (const orgId of orgIds) {
           try {
-            // Read own member doc — rules allow: isOwnDoc(memberId)
             const [orgSnap, memberSnap] = await Promise.all([
               getDoc(doc(db, 'organizations', orgId)),
               getDoc(doc(db, 'organizations', orgId, 'members', user.uid)),
             ]);
             if (orgSnap.exists() && memberSnap.exists()) {
-              list.push({ id: orgId, ...orgSnap.data(), membership: memberSnap.data() });
+              const data = orgSnap.data();
+              console.log('org fields:', orgId, Object.keys(data), data.logoUrl, data.logoURL);
+              list.push({ id: orgId, ...data, membership: memberSnap.data() });
             }
-          } catch {
-            // Skip any org we can't access
+          } catch (e) {
+            console.error('org fetch error:', e);
           }
         }
 
@@ -47,11 +45,17 @@ export default function SelectOrg() {
 
   const switchOrg = async (orgId) => {
     setSwitching(orgId);
-    // Add this orgId to the user's orgIds array for future use
     const existing = userData?.orgIds || [];
     const orgIds   = existing.includes(orgId) ? existing : [...existing, orgId];
     await updateDoc(doc(db, 'users', user.uid), { activeOrgId: orgId, orgIds });
     window.location.href = '/dashboard';
+  };
+
+  const getLogo = (org) => {
+    if (userData?.activeOrgId === org.id && orgData) {
+      return orgData.logoUrl || orgData.logoURL || null;
+    }
+    return org.logoUrl || org.logoURL || null;
   };
 
   return (
@@ -76,6 +80,7 @@ export default function SelectOrg() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {orgs.map(org => {
               const isActive = userData?.activeOrgId === org.id;
+              const logo = getLogo(org);
               return (
                 <div
                   key={org.id}
@@ -83,18 +88,25 @@ export default function SelectOrg() {
                   onClick={() => !isActive && switchOrg(org.id)}
                   style={{ display: 'flex', alignItems: 'center', gap: 16, cursor: isActive ? 'default' : 'pointer', border: isActive ? '1.5px solid #2563eb' : '1px solid #e2e8f0', background: isActive ? '#eff6ff' : '#fff' }}
                 >
-                 <div style={{ width: 44, height: 44, borderRadius: 12, background: isActive ? '#2563eb' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, color: isActive ? '#fff' : '#475569', flexShrink: 0, overflow: 'hidden' }}>
-  {org.logoUrl
-    ? <img src={org.logoUrl || org.logoURL} alt={org.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-    : org.name?.[0]?.toUpperCase()
-  }
-</div>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: isActive ? '#2563eb' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, color: isActive ? '#fff' : '#475569', flexShrink: 0, overflow: 'hidden' }}>
+                    {logo
+                      ? <img
+                          src={logo}
+                          alt={org.name}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          onError={e => { e.target.style.display = 'none'; e.target.parentNode.innerText = org.name?.[0]?.toUpperCase(); }}
+                        />
+                      : org.name?.[0]?.toUpperCase()
+                    }
+                  </div>
+
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, color: '#0f172a', fontSize: 15 }}>{org.name}</div>
                     <div style={{ fontSize: 12, color: '#64748b' }}>
                       {org.type} · <span style={{ textTransform: 'capitalize' }}>{org.membership?.role}</span>
                     </div>
                   </div>
+
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                     {isActive && <span className="badge badge-blue">Active</span>}
                     {!org.membership?.approved && <span className="badge badge-yellow">Pending</span>}
