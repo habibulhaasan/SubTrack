@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, getDocs, collection } from 'firebase/firestore';
 import Link from 'next/link';
+import { db, storage } from '@/lib/firebase';
 
 export default function SelectOrg() {
   const { user, userData } = useAuth();
