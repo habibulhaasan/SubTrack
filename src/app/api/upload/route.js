@@ -1,67 +1,34 @@
 // src/app/api/upload/route.js
-import { google } from 'googleapis';
+
 import { NextResponse } from 'next/server';
-import { Readable } from 'stream';
-import path from 'path';
+import { uploadToDrive } from '@/lib/googleDrive';
 
-const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
+export const config = { api: { bodyParser: false } };
+// Allow up to 50 MB uploads
+export const maxDuration = 60;
 
-function getAuth() {
-  return new google.auth.GoogleAuth({
-    keyFile: path.join(process.cwd(), 'service-account.json'),
-    scopes: ['https://www.googleapis.com/auth/drive'],
-  });
-}
-
-export async function POST(request) {
+export async function POST(req) {
   try {
-    const formData = await request.formData();
+    const formData = await req.formData();
     const file     = formData.get('file');
 
-    if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    if (!file) {
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    }
 
-    const bytes  = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    const mimeType = file.type || 'application/octet-stream';
+    const fileName = file.name || `upload-${Date.now()}`;
 
-    const auth  = getAuth();
-    const drive = google.drive({ version: 'v3', auth });
+    if (file.size > 50 * 1024 * 1024) {
+      return NextResponse.json({ error: 'File too large. Max 50 MB.' }, { status: 400 });
+    }
 
-    const uploaded = await drive.files.create({
-      requestBody: {
-        name:    file.name,
-        parents: [FOLDER_ID],
-      },
-      media: {
-        mimeType: file.type || 'application/octet-stream',
-        body:     Readable.from(buffer),
-      },
-      fields: 'id, name, mimeType, size',
-    });
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const result = await uploadToDrive(buffer, fileName, mimeType);
 
-    const fileId = uploaded.data.id;
-
-    await drive.permissions.create({
-      fileId,
-      requestBody: { role: 'reader', type: 'anyone' },
-    });
-
-    const isImage  = (file.type || '').startsWith('image/');
-    const viewUrl  = isImage
-      ? `https://drive.google.com/uc?export=view&id=${fileId}`
-      : `https://drive.google.com/file/d/${fileId}/view`;
-    const thumbUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w400`;
-
-    return NextResponse.json({
-      fileId,
-      name:     uploaded.data.name,
-      mimeType: uploaded.data.mimeType,
-      size:     buffer.length,
-      viewUrl,
-      thumbUrl,
-    });
-
+    return NextResponse.json(result);
   } catch (err) {
-    console.error('Drive upload error:', err);
+    console.error('[upload]', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
