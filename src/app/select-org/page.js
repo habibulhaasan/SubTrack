@@ -83,9 +83,12 @@ export default function SelectOrg() {
                   onClick={() => !isActive && switchOrg(org.id)}
                   style={{ display: 'flex', alignItems: 'center', gap: 16, cursor: isActive ? 'default' : 'pointer', border: isActive ? '1.5px solid #2563eb' : '1px solid #e2e8f0', background: isActive ? '#eff6ff' : '#fff' }}
                 >
-                  <div style={{ width: 44, height: 44, borderRadius: 12, background: isActive ? '#2563eb' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, color: isActive ? '#fff' : '#475569', flexShrink: 0 }}>
-                    {org.name?.[0]?.toUpperCase()}
-                  </div>
+                 <div style={{ width: 44, height: 44, borderRadius: 12, background: isActive ? '#2563eb' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, color: isActive ? '#fff' : '#475569', flexShrink: 0, overflow: 'hidden' }}>
+  {org.logoUrl
+    ? <img src={org.logoUrl} alt={org.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+    : org.name?.[0]?.toUpperCase()
+  }
+</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, color: '#0f172a', fontSize: 15 }}>{org.name}</div>
                     <div style={{ fontSize: 12, color: '#64748b' }}>
