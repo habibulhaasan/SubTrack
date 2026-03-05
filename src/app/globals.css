@@ -36,6 +36,23 @@ body {
   line-height: 1.5;
 }
 
+/* ─── Dark mode body ─────────────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #0f172a;
+    color: #f1f5f9;
+  }
+  :root {
+    --bg:        #0f172a;
+    --surface:   #1e293b;
+    --surface-2: #334155;
+    --border:    #334155;
+    --text:      #f1f5f9;
+    --text-muted:#94a3b8;
+    --text-dim:  #64748b;
+  }
+}
+
 /* ─── Inputs ─────────────────────────────────────────────────────── */
 input, select, textarea {
   background: #ffffff !important;
@@ -73,7 +90,7 @@ select option { background: #ffffff; color: #0f172a; }
   input, select, textarea {
     background: #1e293b !important;
     color: #f1f5f9 !important;
-    border-color: #334155 !important;
+    border-color: #475569 !important;
   }
   input::placeholder, textarea::placeholder { color: #64748b !important; }
   select option { background: #1e293b; color: #f1f5f9; }
@@ -118,6 +135,9 @@ select option { background: #ffffff; color: #0f172a; }
   padding: 20px 24px;
 }
 @media (max-width: 480px) { .card { padding: 14px 16px; } }
+@media (prefers-color-scheme: dark) {
+  .card { background: var(--surface); border-color: var(--border); }
+}
 
 /* ─── Buttons ────────────────────────────────────────────────────── */
 .btn-primary {
@@ -225,7 +245,7 @@ td {
   vertical-align: middle;
 }
 tr:last-child td { border-bottom: none; }
-tbody tr:hover { background: #f8fafc; cursor: pointer; }
+tbody tr:hover { background: var(--surface-2); cursor: pointer; }
 
 /* ─── Forms ──────────────────────────────────────────────────────── */
 .form-label {
@@ -261,80 +281,57 @@ tbody tr:hover { background: #f8fafc; cursor: pointer; }
   gap: 12px;
   margin-bottom: 20px;
 }
-@media (max-width: 600px) {
-  .stats-row { grid-template-columns: 1fr; gap: 8px; }
-}
+@media (max-width: 600px) { .stats-row { grid-template-columns: 1fr; gap: 8px; } }
 
 .stat-card {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 14px 16px;
   text-align: center;
 }
 .stat-card .stat-label {
-  font-size: 10px;
-  font-weight: 700;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: .07em;
-  margin-bottom: 6px;
+  font-size: 10px; font-weight: 700; color: #64748b;
+  text-transform: uppercase; letter-spacing: .07em; margin-bottom: 6px;
 }
-.stat-card .stat-value {
-  font-size: 20px;
-  font-weight: 800;
-}
+.stat-card .stat-value { font-size: 20px; font-weight: 800; }
 
 /* ─── Tabs ───────────────────────────────────────────────────────── */
 .tab-bar {
-  display: flex;
-  gap: 4px;
+  display: flex; gap: 4px;
   border-bottom: 2px solid var(--border);
   margin-bottom: 24px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
+  overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
 }
 .tab-bar::-webkit-scrollbar { display: none; }
 .tab-btn {
-  padding: 10px 18px;
-  background: none;
-  border: none;
-  white-space: nowrap;
-  font-size: 14px;
-  cursor: pointer;
-  margin-bottom: -2px;
-  border-bottom: 2px solid transparent;
-  color: #64748b;
-  font-weight: 400;
-  transition: color .15s;
+  padding: 10px 18px; background: none; border: none;
+  white-space: nowrap; font-size: 14px; cursor: pointer;
+  margin-bottom: -2px; border-bottom: 2px solid transparent;
+  color: #64748b; font-weight: 400; transition: color .15s;
 }
-.tab-btn.active {
-  border-bottom-color: var(--accent);
-  color: var(--accent);
-  font-weight: 600;
-}
+.tab-btn.active { border-bottom-color: var(--accent); color: var(--accent); font-weight: 600; }
 
-/* ─── Layout: sidebar + main content ─────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════
+   LAYOUT — sidebar + shell
+═══════════════════════════════════════════════════════════════════ */
 .md-sidebar  { display: flex !important; flex-direction: column; }
 .mobile-bar  { display: none !important; }
-
-/* Desktop: sidebar is fixed 240px — shell-main pushed right */
-.shell-main { margin-left: var(--sidebar-w); min-height: 100vh; }
-
-/* Public pages / no sidebar */
+.shell-main  { margin-left: var(--sidebar-w); min-height: 100vh; }
 .shell-main.no-sidebar { margin-left: 0; }
 
-/* Desktop sidebar internal layout */
+/* Sidebar internals */
 .sidebar-inner  { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 .sidebar-header { flex-shrink: 0; }
-.sidebar-nav    { flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0; scrollbar-width: thin; scrollbar-color: #e2e8f0 transparent; }
+.sidebar-nav    {
+  flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0;
+  scrollbar-width: thin; scrollbar-color: #e2e8f0 transparent;
+}
 .sidebar-nav::-webkit-scrollbar       { width: 4px; }
 .sidebar-nav::-webkit-scrollbar-track { background: transparent; }
 .sidebar-nav::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 99px; }
 .sidebar-footer { flex-shrink: 0; border-top: 1px solid #e2e8f0; }
 
-/* Mobile: hide desktop sidebar, show topbar */
 @media (max-width: 768px) {
   .md-sidebar  { display: none  !important; }
   .mobile-bar  { display: flex  !important; }
@@ -343,39 +340,37 @@ tbody tr:hover { background: #f8fafc; cursor: pointer; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   UNIFIED MODAL SYSTEM
+   UNIFIED MODAL SYSTEM  (.dt-overlay + .dt-sheet  OR  .modal-backdrop + .modal-box)
    ───────────────────────────────────────────────────────────────────
-   Works for BOTH the .modal-* classes and the .dt-* classes.
+   MOBILE  (≤768px)
+     • Backdrop  = full-screen dim+blur overlay
+     • Sheet     = bottom-sheet that slides up, scrollable, fills width
 
-   Key insight:
-   - position:fixed modals are fixed to the VIEWPORT, not the page.
-   - The sidebar is 240px wide on desktop.
-   - To visually center a modal in the CONTENT area we shift the
-     backdrop's padding/flex-origin right by 240px on desktop.
-   - On mobile there is no sidebar — center in full viewport.
-
-   Backdrop uses flex centering so the dialog naturally centers
-   inside whatever space the backdrop covers.
+   DESKTOP (≥769px)
+     • Backdrop  = full-screen dim+blur overlay
+     • Sheet     = fixed centered dialog
+       Centering is done on the SHEET itself with:
+         position: fixed
+         top: 50%
+         left: calc(var(--sidebar-w) + (100vw - var(--sidebar-w)) / 2)
+         transform: translate(-50%, -50%)
+       This puts the horizontal anchor at the midpoint of the
+       content area (viewport minus sidebar), then pulls back 50%
+       of the dialog width via translateX(-50%).
+       Nothing about the backdrop affects the dialog position.
 ═══════════════════════════════════════════════════════════════════ */
 
-/* ── Shared backdrop ────────────────────────────────────────────── */
+/* ── Backdrop (both mobile & desktop) ──────────────────────────── */
 .modal-backdrop,
 .dt-overlay {
   position: fixed;
   inset: 0;
   z-index: 9000;
-
-  /* Blurred, dimmed background */
-  background: rgba(15, 23, 42, 0.5);
+  background: rgba(15, 23, 42, 0.55);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-
-  /* Mobile: bottom sheet — align to bottom */
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-
   animation: dtFadeIn .18s ease both;
+  /* No flex — the sheet positions itself */
 }
 
 @keyframes dtFadeIn {
@@ -383,18 +378,28 @@ tbody tr:hover { background: #f8fafc; cursor: pointer; }
   to   { opacity: 1; }
 }
 
-/* ── Shared dialog box ──────────────────────────────────────────── */
+/* ── Sheet — MOBILE default: bottom sheet ───────────────────────── */
 .modal-box,
 .dt-sheet {
-  background: #fff;
+  position: fixed;
+  z-index: 9001;
+
+  /* Stick to bottom, full width */
+  bottom: 0;
+  left: 0;
+  right: 0;
+  top: auto;
+
   width: 100%;
-  max-height: calc(100dvh - 56px); /* leave room for mobile topbar */
+  max-height: 90dvh;   /* generous height so all fields are visible */
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+
+  background: #fff;
   border-radius: 20px 20px 0 0;
-  animation: dtSlideUp .26s cubic-bezier(.32,1,.32,1) both;
-  position: relative;
-  z-index: 9001;
+
+  animation: dtSlideUp .28s cubic-bezier(.32,1,.32,1) both;
 }
 
 @keyframes dtSlideUp {
@@ -402,87 +407,118 @@ tbody tr:hover { background: #f8fafc; cursor: pointer; }
   to   { transform: translateY(0); }
 }
 
-/* ── Handle / title / close ─────────────────────────────────────── */
+/* ── Dark mode sheet ─────────────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  .modal-box,
+  .dt-sheet {
+    background: #1e293b;
+    color: #f1f5f9;
+  }
+  .dt-title { color: #f1f5f9 !important; }
+  .dt-close { color: #64748b !important; }
+  .dt-head  { border-color: #334155; }
+}
+
+/* ── Handle ──────────────────────────────────────────────────────── */
 .modal-handle,
 .dt-handle {
   width: 40px; height: 4px;
   background: #cbd5e1; border-radius: 99px;
   margin: 12px auto 4px; flex-shrink: 0;
 }
+@media (prefers-color-scheme: dark) {
+  .modal-handle, .dt-handle { background: #475569; }
+}
 
+/* ── Head / title / close ────────────────────────────────────────── */
 .modal-title,
 .dt-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
+  display: flex; justify-content: space-between;
+  align-items: center; margin-bottom: 20px;
 }
 
-.dt-title { font-size: 16px; font-weight: 700; color: #0f172a; }
-
-.dt-body  { padding: 8px 20px 44px; }
+.dt-title {
+  font-size: 16px; font-weight: 700; color: #0f172a;
+  margin: 0;
+}
 
 .dt-close {
-  background: none; border: none;
-  cursor: pointer; color: #94a3b8;
-  font-size: 24px; line-height: 1; padding: 0;
+  background: none; border: none; cursor: pointer;
+  color: #94a3b8; font-size: 28px; line-height: 1;
+  padding: 0 0 0 12px; flex-shrink: 0;
+  transition: color .15s;
 }
+.dt-close:hover { color: #475569; }
 
-/* ── Desktop override ───────────────────────────────────────────────
-   On desktop the sidebar takes up 240px on the left.
-   We indent the backdrop's left edge by 240px so the flex
-   centering happens within the visible content area only.
-   The backdrop still covers the full screen (inset:0) so
-   clicking anywhere outside the dialog closes it correctly —
-   but the dialog appears centered in the content area.
+/* ── Body padding (mobile) ───────────────────────────────────────── */
+.dt-body        { padding: 8px 20px 48px; }
+.modal-box      { padding: 0 20px 40px; }
+
+/* ── DESKTOP override ────────────────────────────────────────────────
+   Dialog is a fixed box centered in the content area.
+   Content area = viewport minus sidebar (240px on the left).
+   Horizontal center of content area:
+     240px + (100vw - 240px) / 2  =  120px + 50vw
+
+   We set:
+     left: calc(var(--sidebar-w) / 2 + 50%)
+   which equals 120px + 50vw — the midpoint of the content area —
+   then transform: translate(-50%, -50%) recenters the dialog on
+   that anchor point.
 ──────────────────────────────────────────────────────────────────── */
 @media (min-width: 769px) {
-  .modal-backdrop,
-  .dt-overlay {
-    /* Shift the flex container's left boundary past the sidebar */
-    padding-left: var(--sidebar-w); /* = 240px */
-    align-items: center;
-    justify-content: center;
-  }
-
   .modal-box,
   .dt-sheet {
+    /* Reset mobile bottom-sheet positioning */
+    bottom: auto;
+    left: auto;
+    right: auto;
+    top: auto;
     width: auto;
+
+    /* Center in content area */
+    position: fixed;
+    top: 50%;
+    left: calc(var(--sidebar-w) / 2 + 50%);
+    transform: translate(-50%, -50%);
+
+    /* Size */
     min-width: 480px;
-    max-width: 560px;
-    max-height: calc(100vh - 64px);
+    max-width: min(560px, calc(100vw - var(--sidebar-w) - 48px));
+    max-height: min(88vh, 800px);
+
+    /* Shape */
     border-radius: 16px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.08);
-    animation: dtPop .2s cubic-bezier(.32,1,.32,1) both;
+    box-shadow:
+      0 24px 64px rgba(0, 0, 0, 0.22),
+      0 4px 16px rgba(0, 0, 0, 0.10);
+
+    animation: dtPop .22s cubic-bezier(.32,1,.32,1) both;
+  }
+
+  /* Wide variant */
+  .dt-sheet.dt-wide,
+  .modal-box.modal-wide {
+    min-width: 580px;
+    max-width: min(700px, calc(100vw - var(--sidebar-w) - 48px));
   }
 
   .modal-handle,
   .dt-handle { display: none; }
 
-  .modal-box  { padding: 28px 28px 32px; }
-  .dt-body    { padding: 24px 32px 36px; }
-
-  /* Wide variant */
-  .dt-sheet.dt-wide,
-  .modal-box.modal-wide { min-width: 600px; max-width: 720px; }
+  .dt-body   { padding: 24px 32px 36px; }
+  .modal-box { padding: 28px 32px 36px; }
 }
 
 @keyframes dtPop {
-  from { opacity: 0; transform: scale(.95) translateY(8px); }
-  to   { opacity: 1; transform: scale(1)   translateY(0); }
+  from { opacity: 0; transform: translate(-50%, -46%) scale(.95); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 
-/* ── Public pages (no sidebar) — use full viewport centering ──── */
-/* Applied when <body> has class .no-sidebar or modal is on a public page */
-.no-sidebar .modal-backdrop,
-.no-sidebar .dt-overlay {
-  padding-left: 0;
+/* ── Public pages / no sidebar: center in full viewport ─────────── */
+@media (min-width: 769px) {
+  body.no-sidebar .modal-box,
+  body.no-sidebar .dt-sheet {
+    left: 50%;
+  }
 }
-
-/* ─── Responsive 2-col form grid ─────────────────────────────────── */
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0 16px;
-}
-@media (max-width: 480px) { .form-row { grid-template-columns: 1fr; } }
