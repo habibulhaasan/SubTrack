@@ -27,7 +27,6 @@ export default function SelectOrg() {
             ]);
             if (orgSnap.exists() && memberSnap.exists()) {
               const data = orgSnap.data();
-              console.log('org fields:', orgId, Object.keys(data), data.logoUrl, data.logoURL);
               list.push({ id: orgId, ...data, membership: memberSnap.data() });
             }
           } catch (e) {
