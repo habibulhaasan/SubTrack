@@ -33,15 +33,14 @@ function InfoRow({ label, value }) {
 function MemberModal({ member, onClose, onToggleApproval, onSaveId, settings, nextId, saving }) {
   const [idEdit, setIdEdit] = useState(member.idNo || '');
 
-  // Sync if member.idNo changes externally (e.g. auto-assigned on approve)
   useEffect(() => { setIdEdit(member.idNo || ''); }, [member.idNo]);
 
   return (
     <Modal title="Member Profile" onClose={onClose}>
-      <div style={{ textAlign: 'center', marginBottom: 20 }}>
-        <Avatar m={member} size={64} />
-        <div style={{ marginTop: 10, fontWeight: 700, fontSize: 17 }}>{member.nameEnglish || '(no name)'}</div>
-        {member.nameBengali && <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>{member.nameBengali}</div>}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: 20 }}>
+        <Avatar m={member} size={72} />
+        <div style={{ marginTop: 12, fontWeight: 700, fontSize: 17, color: '#0f172a' }}>{member.nameEnglish || '(no name)'}</div>
+        {member.nameBengali && <div style={{ fontSize: 13, color: '#64748b', marginTop: 3 }}>{member.nameBengali}</div>}
         <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 10 }}>
           <span className={`badge ${member.approved ? 'badge-green' : 'badge-yellow'}`}>{member.approved ? 'Approved' : 'Pending'}</span>
           <span className={`badge ${member.role === 'admin' ? 'badge-blue' : 'badge-gray'}`}>{member.role || 'member'}</span>
