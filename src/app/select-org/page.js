@@ -85,7 +85,7 @@ export default function SelectOrg() {
                 >
                  <div style={{ width: 44, height: 44, borderRadius: 12, background: isActive ? '#2563eb' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, color: isActive ? '#fff' : '#475569', flexShrink: 0, overflow: 'hidden' }}>
   {org.logoUrl
-    ? <img src={org.logoURL} alt={org.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+    ? <img src={org.logoUrl || org.logoURL} alt={org.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
     : org.name?.[0]?.toUpperCase()
   }
 </div>
