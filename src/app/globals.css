@@ -246,61 +246,6 @@ tbody tr:hover { background: #f8fafc; cursor: pointer; }
 .alert-info    { background: var(--accent-light); color: var(--accent); border: 1px solid var(--accent-mid); }
 .alert-warn    { background: var(--warning-bg); color: var(--warning); border: 1px solid #fed7aa; }
 
-/* ─── Modal ──────────────────────────────────────────────────────── */
-/* Mobile: bottom sheet that slides up, leaves space for topbar */
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.48);
-  z-index: 2000;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding-top: 56px; /* leave room for mobile topbar */
-}
-
-.modal-box {
-  background: #fff;
-  width: 100%;
-  max-height: calc(100vh - 56px); /* don't go under topbar */
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  border-radius: 20px 20px 0 0;
-  padding: 0 20px 36px;
-  animation: modalUp .28s cubic-bezier(.32,1,.32,1) both;
-}
-
-.modal-handle {
-  width: 40px;
-  height: 4px;
-  background: #e2e8f0;
-  border-radius: 99px;
-  margin: 12px auto 20px;
-}
-
-.modal-title {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-/* Desktop: centered dialog */
-@media (min-width: 769px) {
-  .modal-backdrop {
-    align-items: center;
-    padding: 24px;
-  }
-  .modal-box {
-    max-width: 520px;
-    border-radius: 16px;
-    max-height: 90vh;
-    padding: 28px 28px 32px;
-    animation: modalIn .22s ease both;
-  }
-  .modal-handle { display: none; }
-}
-
 /* ─── Responsive 2-col form grid ─────────────────────────────────── */
 .form-row {
   display: grid;
@@ -371,15 +316,16 @@ tbody tr:hover { background: #f8fafc; cursor: pointer; }
 }
 
 /* ─── Layout: sidebar + main content ─────────────────────────────── */
-/* Desktop: sidebar is fixed 240px on the left */
 .md-sidebar  { display: flex !important; flex-direction: column; }
 .mobile-bar  { display: none !important; }
-.shell-main  { margin-left: 240px; min-height: 100vh; }
 
-/* Non-auth pages: no sidebar offset */
+/* Desktop: sidebar is fixed 240px — shell-main pushed right */
+.shell-main { margin-left: var(--sidebar-w); min-height: 100vh; }
+
+/* Public pages / no sidebar */
 .shell-main.no-sidebar { margin-left: 0; }
 
-/* Desktop sidebar internal layout — header fixed, nav scrolls */
+/* Desktop sidebar internal layout */
 .sidebar-inner  { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 .sidebar-header { flex-shrink: 0; }
 .sidebar-nav    { flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0; scrollbar-width: thin; scrollbar-color: #e2e8f0 transparent; }
@@ -388,81 +334,155 @@ tbody tr:hover { background: #f8fafc; cursor: pointer; }
 .sidebar-nav::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 99px; }
 .sidebar-footer { flex-shrink: 0; border-top: 1px solid #e2e8f0; }
 
-/* Mobile: hide desktop sidebar, show topbar, push content down */
+/* Mobile: hide desktop sidebar, show topbar */
 @media (max-width: 768px) {
   .md-sidebar  { display: none  !important; }
   .mobile-bar  { display: flex  !important; }
-  .shell-main  { margin-left: 0; }
+  .shell-main  { margin-left: 0 !important; }
   .shell-main.has-sidebar { padding-top: 56px; }
 }
 
-/* ─── Universal modal / dialog ─────────────────────────────────────
-   Mobile  → bottom sheet (slides up from bottom)
-   Desktop → centred dialog (pops in from centre)
-   Use class .dt-modal-overlay + .dt-modal-sheet on the overlay+panel.
-   The handle (.dt-modal-handle) is hidden on desktop automatically.
-──────────────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════
+   UNIFIED MODAL SYSTEM
+   ───────────────────────────────────────────────────────────────────
+   Works for BOTH the .modal-* classes and the .dt-* classes.
+
+   Key insight:
+   - position:fixed modals are fixed to the VIEWPORT, not the page.
+   - The sidebar is 240px wide on desktop.
+   - To visually center a modal in the CONTENT area we shift the
+     backdrop's padding/flex-origin right by 240px on desktop.
+   - On mobile there is no sidebar — center in full viewport.
+
+   Backdrop uses flex centering so the dialog naturally centers
+   inside whatever space the backdrop covers.
+═══════════════════════════════════════════════════════════════════ */
+
+/* ── Shared backdrop ────────────────────────────────────────────── */
+.modal-backdrop,
 .dt-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,.52);
   z-index: 9000;
+
+  /* Blurred, dimmed background */
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+
+  /* Mobile: bottom sheet — align to bottom */
   display: flex;
-  align-items: flex-end;          /* bottom sheet on mobile */
+  align-items: flex-end;
   justify-content: center;
-  padding-top: 56px;              /* clear topbar on mobile */
+
+  animation: dtFadeIn .18s ease both;
 }
+
+@keyframes dtFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── Shared dialog box ──────────────────────────────────────────── */
+.modal-box,
 .dt-sheet {
   background: #fff;
   width: 100%;
-  max-height: calc(100vh - 56px);
+  max-height: calc(100dvh - 56px); /* leave room for mobile topbar */
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   border-radius: 20px 20px 0 0;
-  display: flex;
-  flex-direction: column;
-  animation: dtUp .26s cubic-bezier(.32,1,.32,1) both;
+  animation: dtSlideUp .26s cubic-bezier(.32,1,.32,1) both;
+  position: relative;
+  z-index: 9001;
 }
+
+@keyframes dtSlideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* ── Handle / title / close ─────────────────────────────────────── */
+.modal-handle,
 .dt-handle {
   width: 40px; height: 4px;
   background: #cbd5e1; border-radius: 99px;
   margin: 12px auto 4px; flex-shrink: 0;
 }
-.dt-body  { padding: 8px 20px 44px; }
-.dt-head  { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
-.dt-title { font-size: 16px; font-weight: 700; color: #0f172a; }
-.dt-close { background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 24px; line-height: 1; padding: 0; }
 
-@keyframes dtUp {
-  from { transform: translateY(100%); }
-  to   { transform: translateY(0); }
+.modal-title,
+.dt-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
 }
 
-/* Desktop override — centred dialog */
+.dt-title { font-size: 16px; font-weight: 700; color: #0f172a; }
+
+.dt-body  { padding: 8px 20px 44px; }
+
+.dt-close {
+  background: none; border: none;
+  cursor: pointer; color: #94a3b8;
+  font-size: 24px; line-height: 1; padding: 0;
+}
+
+/* ── Desktop override ───────────────────────────────────────────────
+   On desktop the sidebar takes up 240px on the left.
+   We indent the backdrop's left edge by 240px so the flex
+   centering happens within the visible content area only.
+   The backdrop still covers the full screen (inset:0) so
+   clicking anywhere outside the dialog closes it correctly —
+   but the dialog appears centered in the content area.
+──────────────────────────────────────────────────────────────────── */
 @media (min-width: 769px) {
+  .modal-backdrop,
   .dt-overlay {
+    /* Shift the flex container's left boundary past the sidebar */
+    padding-left: var(--sidebar-w); /* = 240px */
     align-items: center;
     justify-content: center;
-    padding: 32px 24px;
   }
+
+  .modal-box,
   .dt-sheet {
     width: auto;
-    min-width: 520px;
-    max-width: 620px;
+    min-width: 480px;
+    max-width: 560px;
     max-height: calc(100vh - 64px);
     border-radius: 16px;
-    animation: dtPop .2s ease both;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.08);
+    animation: dtPop .2s cubic-bezier(.32,1,.32,1) both;
   }
+
+  .modal-handle,
   .dt-handle { display: none; }
-  .dt-body   { padding: 24px 32px 36px; }
+
+  .modal-box  { padding: 28px 28px 32px; }
+  .dt-body    { padding: 24px 32px 36px; }
+
+  /* Wide variant */
+  .dt-sheet.dt-wide,
+  .modal-box.modal-wide { min-width: 600px; max-width: 720px; }
 }
 
 @keyframes dtPop {
-  from { transform: scale(.96); opacity: 0; }
-  to   { transform: scale(1);   opacity: 1; }
+  from { opacity: 0; transform: scale(.95) translateY(8px); }
+  to   { opacity: 1; transform: scale(1)   translateY(0); }
 }
 
-/* Wide dialog variant (for forms with side-by-side fields) */
-@media (min-width: 769px) {
-  .dt-sheet.dt-wide { min-width: 620px; max-width: 760px; }
+/* ── Public pages (no sidebar) — use full viewport centering ──── */
+/* Applied when <body> has class .no-sidebar or modal is on a public page */
+.no-sidebar .modal-backdrop,
+.no-sidebar .dt-overlay {
+  padding-left: 0;
 }
+
+/* ─── Responsive 2-col form grid ─────────────────────────────────── */
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 16px;
+}
+@media (max-width: 480px) { .form-row { grid-template-columns: 1fr; } }
