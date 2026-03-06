@@ -1,10 +1,15 @@
+// src/app/admin/settings/page.js
 'use client';
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, onSnapshot, updateDoc, collection, addDoc, setDoc, getDocs, deleteDoc, serverTimestamp, query, where } from 'firebase/firestore';
+import {
+  doc, getDoc, onSnapshot, updateDoc,
+  collection, addDoc, setDoc, getDocs, deleteDoc,
+  serverTimestamp, query, where,
+} from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
 
-const BASE_METHODS = ['bKash','Nagad','Rocket','Bank Transfer','Cash'];
+const BASE_METHODS = ['bKash', 'Nagad', 'Rocket', 'Bank Transfer', 'Cash'];
 
 function Toggle({ label, sub, value, onChange }) {
   return (
@@ -25,70 +30,144 @@ function genId() { return Math.random().toString(36).slice(2, 9); }
 
 export default function AdminSettings() {
   const { user, userData, orgData } = useAuth();
-  const [tab, setTab]           = useState('rules');
-  const [settings, setSettings] = useState({});
-  const [saving, setSaving]     = useState(false);
-  const [saved, setSaved]       = useState(false);
-  const [members, setMembers]   = useState([]);
-  const [invites, setInvites]   = useState([]);
+  const [tab, setTab]         = useState('rules');
+  const [saving, setSaving]   = useState(false);
+  const [saved,  setSaved]    = useState(false);
+  const [members,  setMembers]  = useState([]);
+  const [invites,  setInvites]  = useState([]);
   const [inviteDays, setInviteDays] = useState(7);
 
-  // Multi-account state: { bKash: [{id, label, number}], ... }
-  const [paymentAccounts, setPaymentAccounts] = useState({});
-  const [addingAccount, setAddingAccount]     = useState(null); // method name
-  const [newAccLabel, setNewAccLabel]         = useState('');
-  const [newAccNumber, setNewAccNumber]       = useState('');
-  const [savingAccounts, setSavingAccounts]   = useState(false);
+  // ── ALL settings in one unified state ──────────────────────────────────
+  // paymentAccounts lives inside settings.paymentAccounts — never separate
+  const [settings, setSettings] = useState({});
 
-  // Special subscription state
-  const [specialSubs, setSpecialSubs]   = useState([]);
-  const [subForm, setSubForm]           = useState({ title:'', description:'', amount:'', deadline:'', targetAll: true });
-  const [subSaving, setSubSaving]       = useState(false);
-  const [subSaved, setSubSaved]         = useState(false);
+  // Add-account form (local UI state only — does not touch Firestore until Save)
+  const [addingAccount, setAddingAccount] = useState(null);
+  const [newAccLabel,   setNewAccLabel]   = useState('');
+  const [newAccNumber,  setNewAccNumber]  = useState('');
+
+  // Special subscriptions
+  const [specialSubs, setSpecialSubs] = useState([]);
+  const [subForm, setSubForm] = useState({ title:'', description:'', amount:'', deadline:'' });
+  const [subSaving, setSubSaving] = useState(false);
+  const [subSaved,  setSubSaved]  = useState(false);
+
+  const [logoPreview, setLogoPreview] = useState(null);
 
   const orgId = userData?.activeOrgId;
 
+  // ── Load org data ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!orgId) return;
+
     const unsub = onSnapshot(doc(db, 'organizations', orgId), snap => {
-      if (snap.exists()) {
-        const d = snap.data();
-        setSettings(d.settings || {});
-        // Load multi-account data; migrate from old accountDetails if needed
-        const pa = d.settings?.paymentAccounts || {};
-        // Migrate old single-account format
-        const methods = d.settings?.paymentMethods || BASE_METHODS;
-        const migrated = { ...pa };
-        methods.forEach(m => {
-          if (!migrated[m] && d.settings?.accountDetails?.[m]) {
-            migrated[m] = [{ id: genId(), label: 'Default', number: d.settings.accountDetails[m] }];
-          }
-          if (!migrated[m]) migrated[m] = [];
-        });
-        setPaymentAccounts(migrated);
-      }
+      if (!snap.exists()) return;
+      const d        = snap.data();
+      const raw      = d.settings || {};
+      const methods  = raw.paymentMethods || BASE_METHODS;
+
+      // Migrate old single-account format (accountDetails) → paymentAccounts array
+      const pa = { ...(raw.paymentAccounts || {}) };
+      methods.forEach(m => {
+        if (!pa[m] && raw.accountDetails?.[m]) {
+          pa[m] = [{ id: genId(), label: 'Default', number: raw.accountDetails[m] }];
+        }
+        if (!pa[m]) pa[m] = [];
+      });
+
+      // Store paymentAccounts INSIDE settings state — single source of truth
+      setSettings({ ...raw, paymentAccounts: pa });
     });
+
+    // Members (for subscriptions tab)
     getDocs(collection(db, 'organizations', orgId, 'members')).then(async snap => {
-      const memberDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const withNames = await Promise.all(memberDocs.map(async m => {
+      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const withNames = await Promise.all(docs.map(async m => {
         try {
-          const uSnap = await getDoc(doc(db, 'users', m.id));
-          return uSnap.exists() ? { ...uSnap.data(), ...m } : m;
+          const u = await getDoc(doc(db, 'users', m.id));
+          return u.exists() ? { ...u.data(), ...m } : m;
         } catch { return m; }
       }));
       setMembers(withNames);
     });
+
+    // Invites
     getDocs(query(collection(db, 'invites'), where('orgId', '==', orgId)))
       .then(snap => setInvites(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+
+    // Special subs
     const unsubSubs = onSnapshot(
       collection(db, 'organizations', orgId, 'specialSubscriptions'),
-      snap => setSpecialSubs(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0)))
+      snap => setSpecialSubs(
+        snap.docs.map(d => ({ id: d.id, ...d.data() }))
+          .sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0))
+      )
     );
+
     return () => { unsub(); unsubSubs(); };
   }, [orgId]);
 
-  const [logoPreview, setLogoPreview] = useState(null);
+  // ── Helpers ─────────────────────────────────────────────────────────────
 
+  // Update any top-level settings key
+  const set = (k, v) => setSettings(p => ({ ...p, [k]: v }));
+
+  // Get paymentAccounts from unified settings state
+  const paymentAccounts = settings.paymentAccounts || {};
+
+  // Update paymentAccounts inside settings (keeps everything in one object)
+  const setAccounts = (updater) =>
+    setSettings(p => ({
+      ...p,
+      paymentAccounts: typeof updater === 'function'
+        ? updater(p.paymentAccounts || {})
+        : updater,
+    }));
+
+  const enabledMethods = settings.paymentMethods || BASE_METHODS;
+
+  const toggleMethod = (method) => {
+    const current = settings.paymentMethods || BASE_METHODS;
+    const updated  = current.includes(method)
+      ? current.filter(m => m !== method)
+      : [...current, method];
+    set('paymentMethods', updated);
+    // Ensure paymentAccounts has a slot for this method
+    if (!paymentAccounts[method]) {
+      setAccounts(prev => ({ ...prev, [method]: [] }));
+    }
+  };
+
+  // ── Add / remove account (local state only — saved on Save button) ──────
+  const addAccount = (method) => {
+    if (!newAccNumber.trim()) { alert('Account number is required.'); return; }
+    const acc = { id: genId(), label: newAccLabel.trim() || 'Account', number: newAccNumber.trim() };
+    setAccounts(prev => ({ ...prev, [method]: [...(prev[method] || []), acc] }));
+    setAddingAccount(null);
+    setNewAccLabel('');
+    setNewAccNumber('');
+  };
+
+  const removeAccount = (method, id) => {
+    if (!confirm('Remove this account?')) return;
+    setAccounts(prev => ({ ...prev, [method]: (prev[method] || []).filter(a => a.id !== id) }));
+  };
+
+  // ── Single unified save — ALWAYS writes everything together ─────────────
+  const saveAll = async () => {
+    setSaving(true);
+    try {
+      // settings already contains paymentAccounts — write the whole thing at once
+      await updateDoc(doc(db, 'organizations', orgId), { settings });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (e) {
+      alert('Save failed: ' + e.message);
+    }
+    setSaving(false);
+  };
+
+  // ── Logo ─────────────────────────────────────────────────────────────────
   const handleLogo = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -117,74 +196,31 @@ export default function AdminSettings() {
     } catch (e) { alert(e.message); }
   };
 
-  const set = (k, v) => setSettings(p => ({ ...p, [k]: v }));
-
-  const saveRules = async () => {
-    setSaving(true);
-    try {
-      await updateDoc(doc(db, 'organizations', orgId), { settings });
-      setSaved(true); setTimeout(() => setSaved(false), 3000);
-    } catch (e) { alert(e.message); }
-    setSaving(false);
-  };
-
+  // ── Member custom amount ──────────────────────────────────────────────────
   const saveMemberAmount = async (memberId, amount) => {
     try {
       await updateDoc(doc(db, 'organizations', orgId, 'members', memberId), { customAmount: Number(amount) || 0 });
     } catch (e) { console.error(e); }
   };
 
-  const toggleMethod = (method) => {
-    const current = settings.paymentMethods || BASE_METHODS;
-    const updated  = current.includes(method)
-      ? current.filter(m => m !== method)
-      : [...current, method];
-    set('paymentMethods', updated);
-  };
-
-  // Account management
-  const saveAccounts = async () => {
-    setSavingAccounts(true);
-    try {
-      await updateDoc(doc(db, 'organizations', orgId), {
-        'settings.paymentAccounts': paymentAccounts,
-      });
-      setSaved(true); setTimeout(() => setSaved(false), 2000);
-    } catch (e) { alert(e.message); }
-    setSavingAccounts(false);
-  };
-
-  const addAccount = (method) => {
-    if (!newAccNumber.trim()) { alert('Account number is required.'); return; }
-    const acc = { id: genId(), label: newAccLabel.trim() || 'Account', number: newAccNumber.trim() };
-    setPaymentAccounts(prev => ({ ...prev, [method]: [...(prev[method]||[]), acc] }));
-    setAddingAccount(null);
-    setNewAccLabel(''); setNewAccNumber('');
-  };
-
-  const removeAccount = (method, id) => {
-    if (!confirm('Remove this account?')) return;
-    setPaymentAccounts(prev => ({ ...prev, [method]: prev[method].filter(a => a.id !== id) }));
-  };
-
+  // ── Invites ───────────────────────────────────────────────────────────────
   const createInvite = async () => {
     if (!orgId || !orgData) return;
     try {
       const exp = new Date();
       exp.setDate(exp.getDate() + Number(inviteDays));
-      const slug    = orgData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30);
-      const suffix  = Math.random().toString(36).slice(2, 7);
-      const inviteId = `${slug}-${suffix}`;
+      const slug     = orgData.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,30);
+      const inviteId = `${slug}-${Math.random().toString(36).slice(2,7)}`;
       const inviteData = {
         orgId, orgName: orgData.name, orgType: orgData.type,
         orgDescription: orgData.description || '',
         orgSettings: { baseAmount: orgData.settings?.baseAmount, dueDate: orgData.settings?.dueDate },
-        expiresAt: { seconds: Math.floor(exp.getTime() / 1000) },
+        expiresAt: { seconds: Math.floor(exp.getTime()/1000) },
         createdAt: serverTimestamp(), createdBy: user.uid, useCount: 0,
       };
       await setDoc(doc(db, 'invites', inviteId), inviteData);
       setInvites(p => [...p, { id: inviteId, ...inviteData }]);
-    } catch (e) { alert('Error creating invite: ' + e.message); }
+    } catch (e) { alert('Error: ' + e.message); }
   };
 
   const delInvite = async (id) => {
@@ -194,9 +230,12 @@ export default function AdminSettings() {
     } catch (e) { alert(e.message); }
   };
 
+  // ── Special subscriptions ─────────────────────────────────────────────────
   const createSpecialSub = async (e) => {
     e.preventDefault();
-    if (!subForm.title || !subForm.amount || !subForm.deadline) { alert('Title, amount, and deadline are required.'); return; }
+    if (!subForm.title || !subForm.amount || !subForm.deadline) {
+      alert('Title, amount, and deadline are required.'); return;
+    }
     setSubSaving(true);
     try {
       await addDoc(collection(db, 'organizations', orgId, 'specialSubscriptions'), {
@@ -204,16 +243,17 @@ export default function AdminSettings() {
         amount: Number(subForm.amount), deadline: subForm.deadline,
         active: true, createdAt: serverTimestamp(), createdBy: user.uid,
       });
-      const mSnap = await getDocs(collection(db, 'organizations', orgId, 'members'));
-      const approved = mSnap.docs.filter(d => d.data().approved);
+      const mSnap   = await getDocs(collection(db, 'organizations', orgId, 'members'));
       const deadline = new Date(subForm.deadline).toLocaleDateString('en-GB');
-      const msg = `📢 Special subscription: "${subForm.title}" — ৳${Number(subForm.amount).toLocaleString()} due by ${deadline}. ${subForm.description||''}`;
-      await Promise.all(approved.map(d =>
-        addDoc(collection(db, 'organizations', orgId, 'notifications'), {
-          userId: d.id, message: msg.trim(), read: false, createdAt: serverTimestamp(),
-        })
-      ));
-      setSubForm({ title:'', description:'', amount:'', deadline:'', targetAll: true });
+      const msg     = `📢 Special subscription: "${subForm.title}" — ৳${Number(subForm.amount).toLocaleString()} due by ${deadline}. ${subForm.description||''}`.trim();
+      await Promise.all(
+        mSnap.docs.filter(d => d.data().approved).map(d =>
+          addDoc(collection(db, 'organizations', orgId, 'notifications'), {
+            userId: d.id, message: msg, read: false, createdAt: serverTimestamp(),
+          })
+        )
+      );
+      setSubForm({ title:'', description:'', amount:'', deadline:'' });
       setSubSaved(true); setTimeout(() => setSubSaved(false), 3000);
     } catch (e) { alert(e.message); }
     setSubSaving(false);
@@ -230,9 +270,15 @@ export default function AdminSettings() {
     catch (e) { alert(e.message); }
   };
 
-  const enabledMethods = settings.paymentMethods || BASE_METHODS;
-  const TABS = [['rules','Rules'],['payments','Payment Accounts'],['subscriptions','Subscriptions'],['special','Special Subs'],['invites','Invite Links']];
+  const TABS = [
+    ['rules',         'Rules'],
+    ['payments',      'Payment Accounts'],
+    ['subscriptions', 'Subscriptions'],
+    ['special',       'Special Subs'],
+    ['invites',       'Invite Links'],
+  ];
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="page-wrap animate-fade">
       <div className="page-header">
@@ -252,10 +298,12 @@ export default function AdminSettings() {
         ))}
       </div>
 
-      {/* ── Rules ── */}
+      {/* ── Rules tab ────────────────────────────────────────────────────── */}
       {tab === 'rules' && (
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-          {saved && <div className="alert alert-success">Settings saved.</div>}
+          {saved && <div className="alert alert-success">✓ Settings saved successfully.</div>}
+
+          {/* Logo */}
           <div className="card">
             <div style={{ fontWeight:600, fontSize:14, color:'#0f172a', marginBottom:12 }}>Organization Logo</div>
             <div style={{ display:'flex', alignItems:'center', gap:16 }}>
@@ -277,40 +325,43 @@ export default function AdminSettings() {
             </div>
           </div>
 
+          {/* Rules form */}
           <div className="card">
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 20px' }}>
               {[
-                ['baseAmount','Monthly Amount','number'],
-                ['dueDate','Due Day (of month)','number'],
-                ['penalty','Late Fee Amount','number'],
-                ['startDate','Start Date','date'],
+                ['baseAmount', 'Monthly Amount',      'number'],
+                ['dueDate',    'Due Day (of month)',   'number'],
+                ['penalty',    'Late Fee Amount',      'number'],
+                ['startDate',  'Start Date',           'date'],
               ].map(([k, l, t]) => (
                 <div key={k} className="form-group">
                   <label className="form-label">{l}</label>
-                  <input type={t} value={settings[k] || ''} onChange={e => set(k, t === 'number' ? Number(e.target.value) : e.target.value)} />
+                  <input type={t} value={settings[k] || ''}
+                    onChange={e => set(k, t === 'number' ? Number(e.target.value) : e.target.value)} />
                 </div>
               ))}
             </div>
-            <Toggle label="Enable Monthly Installments" value={settings.monthlyEnabled !== false} onChange={() => set('monthlyEnabled', settings.monthlyEnabled === false ? true : false)} sub="When OFF, members won't see monthly payment options" />
-            <Toggle label="Enable Late Fees"           value={!!settings.lateFeeEnabled}  onChange={() => set('lateFeeEnabled', !settings.lateFeeEnabled)}  sub="Charge penalty for payments after the due date" />
-            <Toggle label="Uniform Subscription"      value={!!settings.uniformAmount}    onChange={() => set('uniformAmount', !settings.uniformAmount)}    sub="All members pay the same base amount" />
-            <Toggle label="Show Total Fund to Members" value={settings.showFund !== false} onChange={() => set('showFund', settings.showFund === false ? true : false)} sub="Members can see the total collected amount" />
-            <Toggle label="Auto-assign Member IDs"    value={!!settings.autoMemberId}     onChange={() => set('autoMemberId', !settings.autoMemberId)}     sub="Automatically assign sequential IDs (e.g. M-001) when approving members" />
-            <button onClick={saveRules} disabled={saving} className="btn-primary" style={{ marginTop:20, padding:'10px 28px' }}>
+            <Toggle label="Enable Monthly Installments" value={settings.monthlyEnabled !== false} onChange={() => set('monthlyEnabled', settings.monthlyEnabled === false)} sub="When OFF, members won't see monthly payment options" />
+            <Toggle label="Enable Late Fees"            value={!!settings.lateFeeEnabled}         onChange={() => set('lateFeeEnabled', !settings.lateFeeEnabled)}                  sub="Charge penalty for payments after the due date" />
+            <Toggle label="Uniform Subscription"       value={!!settings.uniformAmount}           onChange={() => set('uniformAmount', !settings.uniformAmount)}                    sub="All members pay the same base amount" />
+            <Toggle label="Show Total Fund to Members"  value={settings.showFund !== false}        onChange={() => set('showFund', settings.showFund === false)}                     sub="Members can see the total collected amount" />
+            <Toggle label="Auto-assign Member IDs"      value={!!settings.autoMemberId}            onChange={() => set('autoMemberId', !settings.autoMemberId)}                      sub="Automatically assign sequential IDs when approving members" />
+            <button onClick={saveAll} disabled={saving} className="btn-primary" style={{ marginTop:20, padding:'10px 28px' }}>
               {saving ? 'Saving…' : 'Save Settings'}
             </button>
           </div>
         </div>
       )}
 
-      {/* ── Payment Accounts ── */}
+      {/* ── Payment Accounts tab ─────────────────────────────────────────── */}
       {tab === 'payments' && (
         <div style={{ display:'grid', gap:16 }}>
-          {saved && <div className="alert alert-success">Saved.</div>}
+          {saved && <div className="alert alert-success">✓ Payment accounts saved successfully.</div>}
+
           <div className="card">
-            <div style={{ fontWeight:600, fontSize:14, color:'#0f172a', marginBottom:4 }}>Payment Methods & Accounts</div>
+            <div style={{ fontWeight:600, fontSize:14, color:'#0f172a', marginBottom:4 }}>Payment Methods &amp; Accounts</div>
             <p style={{ fontSize:13, color:'#64748b', marginBottom:16 }}>
-              Enable methods, add multiple accounts per method (e.g. two bKash numbers), and configure gateway fees.
+              Enable methods and add multiple account numbers per method. Changes are saved when you click <strong>Save</strong> below.
             </p>
 
             <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
@@ -319,75 +370,99 @@ export default function AdminSettings() {
                 const accounts   = paymentAccounts[m] || [];
                 const feeEnabled = settings.gatewayFees?.[m]?.enabled ?? false;
                 const feeRate    = settings.gatewayFees?.[m]?.rate ?? '';
-                const setFee     = (field, val) => set('gatewayFees', {
-                  ...(settings.gatewayFees||{}),
-                  [m]: { ...(settings.gatewayFees?.[m]||{}), [field]: val }
+
+                const setFee = (field, val) => set('gatewayFees', {
+                  ...(settings.gatewayFees || {}),
+                  [m]: { ...(settings.gatewayFees?.[m] || {}), [field]: val },
                 });
 
                 return (
                   <div key={m} style={{ border:`1.5px solid ${enabled?'#bfdbfe':'#e2e8f0'}`, borderRadius:10, overflow:'hidden', background: enabled?'#f8faff':'#fafafa' }}>
-                    {/* Method header */}
-                    <label style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', cursor:'pointer', borderBottom: enabled?'1px solid #e2e8f0':'none' }}>
-                      <input type="checkbox" checked={enabled} onChange={() => { toggleMethod(m); setSettings(p => p); }} style={{ width:16, height:16, accentColor:'#2563eb', flexShrink:0 }} />
+
+                    {/* Method enable toggle */}
+                    <label style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', cursor:'pointer', borderBottom: enabled ? '1px solid #e2e8f0' : 'none' }}>
+                      <input type="checkbox" checked={enabled}
+                        onChange={() => toggleMethod(m)}
+                        style={{ width:16, height:16, accentColor:'#2563eb', flexShrink:0 }} />
                       <span style={{ fontWeight:600, fontSize:14, color: enabled?'#1d4ed8':'#475569', flex:1 }}>{m}</span>
-                      {enabled && <span className="badge badge-green" style={{ fontSize:10 }}>{accounts.length} account{accounts.length !== 1 ? 's' : ''}</span>}
+                      {enabled && m !== 'Cash' && (
+                        <span className="badge badge-green" style={{ fontSize:10 }}>
+                          {accounts.length} account{accounts.length !== 1 ? 's' : ''}
+                        </span>
+                      )}
                     </label>
 
                     {enabled && (
                       <div style={{ padding:'14px 16px', display:'grid', gap:12 }}>
-                        {/* Accounts list */}
+
+                        {/* Accounts list (not for Cash) */}
                         {m !== 'Cash' && (
                           <div>
-                            <div style={{ fontSize:12, fontWeight:700, color:'#64748b', marginBottom:8, textTransform:'uppercase', letterSpacing:'0.05em' }}>Accounts</div>
+                            <div style={{ fontSize:12, fontWeight:700, color:'#64748b', marginBottom:8, textTransform:'uppercase', letterSpacing:'0.05em' }}>
+                              Accounts
+                            </div>
+
                             {accounts.length === 0 && (
-                              <div style={{ fontSize:12, color:'#94a3b8', padding:'8px 0' }}>No accounts added yet. Add one below.</div>
+                              <div style={{ fontSize:12, color:'#94a3b8', padding:'8px 0' }}>
+                                No accounts added yet. Add one below — members will see these numbers when paying.
+                              </div>
                             )}
+
+                            {/* Existing accounts */}
                             {accounts.map(acc => (
-                              <div key={acc.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', background:'#fff', border:'1px solid #e2e8f0', borderRadius:8, marginBottom:6 }}>
+                              <div key={acc.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', background:'#fff', border:'1px solid #e2e8f0', borderRadius:8, marginBottom:6 }}>
                                 <div style={{ flex:1 }}>
                                   <div style={{ fontSize:13, fontWeight:600, color:'#0f172a' }}>{acc.label}</div>
-                                  <div style={{ fontSize:12, color:'#475569', fontFamily:'monospace' }}>{acc.number}</div>
+                                  <div style={{ fontSize:12, color:'#475569', fontFamily:'monospace', marginTop:2 }}>{acc.number}</div>
                                 </div>
                                 <button onClick={() => removeAccount(m, acc.id)}
-                                  style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:16, padding:'2px 6px' }}>×</button>
+                                  style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:18, padding:'0 6px', lineHeight:1 }}>×</button>
                               </div>
                             ))}
 
-                            {/* Add account form */}
+                            {/* Add account inline form */}
                             {addingAccount === m ? (
-                              <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:8, padding:'12px', marginTop:6 }}>
+                              <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:8, padding:'12px', marginTop:4 }}>
                                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
                                   <div>
                                     <label className="form-label">Label</label>
-                                    <input value={newAccLabel} onChange={e => setNewAccLabel(e.target.value)} placeholder="e.g. Main Account" />
+                                    <input value={newAccLabel} onChange={e => setNewAccLabel(e.target.value)}
+                                      placeholder="e.g. Main Account" />
                                   </div>
                                   <div>
                                     <label className="form-label">Account Number *</label>
                                     <input value={newAccNumber} onChange={e => setNewAccNumber(e.target.value)}
-                                      placeholder={m === 'Bank Transfer' ? 'Bank, account no, routing…' : `${m} number`} />
+                                      placeholder={m === 'Bank Transfer' ? 'Bank & account number' : `${m} number`}
+                                      autoFocus />
                                   </div>
                                 </div>
                                 <div style={{ display:'flex', gap:8 }}>
-                                  <button onClick={() => addAccount(m)} className="btn-primary" style={{ padding:'8px 16px', fontSize:13 }}>Add</button>
-                                  <button onClick={() => { setAddingAccount(null); setNewAccLabel(''); setNewAccNumber(''); }} className="btn-ghost" style={{ padding:'8px 14px', fontSize:13 }}>Cancel</button>
+                                  <button onClick={() => addAccount(m)} className="btn-primary" style={{ padding:'8px 18px', fontSize:13 }}>
+                                    Add
+                                  </button>
+                                  <button onClick={() => { setAddingAccount(null); setNewAccLabel(''); setNewAccNumber(''); }}
+                                    className="btn-ghost" style={{ padding:'8px 14px', fontSize:13 }}>
+                                    Cancel
+                                  </button>
                                 </div>
                               </div>
                             ) : (
-                              <button onClick={() => { setAddingAccount(m); setNewAccLabel(''); setNewAccNumber(''); }}
-                                style={{ fontSize:12, color:'#2563eb', background:'none', border:'1px dashed #bfdbfe', borderRadius:7, padding:'6px 14px', cursor:'pointer', marginTop:4, fontWeight:600 }}>
+                              <button
+                                onClick={() => { setAddingAccount(m); setNewAccLabel(''); setNewAccNumber(''); }}
+                                style={{ fontSize:12, color:'#2563eb', background:'none', border:'1px dashed #bfdbfe', borderRadius:7, padding:'7px 16px', cursor:'pointer', marginTop:4, fontWeight:600 }}>
                                 + Add Account
                               </button>
                             )}
                           </div>
                         )}
 
-                        {/* Gateway Fee */}
+                        {/* Gateway fee (not for Cash) */}
                         {m !== 'Cash' && (
                           <div style={{ background:'#f8fafc', borderRadius:8, padding:'12px 14px', border:'1px solid #e2e8f0' }}>
                             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: feeEnabled ? 12 : 0 }}>
                               <div>
                                 <div style={{ fontSize:13, fontWeight:600, color:'#0f172a' }}>Gateway Fee</div>
-                                <div style={{ fontSize:11, color:'#94a3b8', marginTop:1 }}>Automatically add fee to member payments</div>
+                                <div style={{ fontSize:11, color:'#94a3b8', marginTop:1 }}>Automatically add % fee to member payments</div>
                               </div>
                               <button type="button" onClick={() => setFee('enabled', !feeEnabled)}
                                 style={{ width:40, height:22, borderRadius:99, border:'none', cursor:'pointer', background: feeEnabled ? '#2563eb' : '#e2e8f0', position:'relative', flexShrink:0 }}>
@@ -410,19 +485,19 @@ export default function AdminSettings() {
               })}
             </div>
 
-            <div style={{ display:'flex', gap:10, marginTop:20, flexWrap:'wrap' }}>
-              <button onClick={async () => { setSaving(true); await saveRules(); setSaving(false); }} disabled={saving} className="btn-primary" style={{ padding:'10px 28px' }}>
-                {saving ? 'Saving…' : 'Save Methods & Fees'}
-              </button>
-              <button onClick={saveAccounts} disabled={savingAccounts} className="btn-ghost" style={{ padding:'10px 24px' }}>
-                {savingAccounts ? 'Saving…' : 'Save Accounts'}
-              </button>
-            </div>
+            {/* Single save button — saves everything together */}
+            <button onClick={saveAll} disabled={saving} className="btn-primary"
+              style={{ marginTop:20, padding:'11px 32px', fontSize:14 }}>
+              {saving ? 'Saving…' : '💾 Save All Payment Settings'}
+            </button>
+            <p style={{ fontSize:11, color:'#94a3b8', marginTop:8 }}>
+              Saves enabled methods, all account numbers, and gateway fees together.
+            </p>
           </div>
         </div>
       )}
 
-      {/* ── Subscriptions ── */}
+      {/* ── Subscriptions tab ────────────────────────────────────────────── */}
       {tab === 'subscriptions' && (
         <div className="card">
           <div className="alert alert-info" style={{ fontSize:13, marginBottom:16 }}>
@@ -451,10 +526,11 @@ export default function AdminSettings() {
         </div>
       )}
 
-      {/* ── Special Subscriptions ── */}
+      {/* ── Special Subscriptions tab ─────────────────────────────────────── */}
       {tab === 'special' && (
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
           {subSaved && <div className="alert alert-success">Special subscription created and members notified!</div>}
+
           <div className="card">
             <div style={{ fontWeight:600, fontSize:14, color:'#0f172a', marginBottom:4 }}>Create Special Subscription</div>
             <p style={{ fontSize:13, color:'#64748b', marginBottom:16 }}>For one-time fundraising goals with a deadline.</p>
@@ -485,11 +561,10 @@ export default function AdminSettings() {
 
           {specialSubs.length > 0 && (
             <div className="card">
-              <div style={{ fontWeight:600, fontSize:14, color:'#0f172a', marginBottom:12 }}>Active Special Subscriptions</div>
+              <div style={{ fontWeight:600, fontSize:14, color:'#0f172a', marginBottom:12 }}>Special Subscriptions</div>
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
                 {specialSubs.map(sub => {
-                  const deadline = sub.deadline ? new Date(sub.deadline) : null;
-                  const expired  = deadline && deadline < new Date();
+                  const expired = sub.deadline && new Date(sub.deadline) < new Date();
                   return (
                     <div key={sub.id} style={{ padding:'14px 16px', border:`1.5px solid ${sub.active?'#bfdbfe':'#e2e8f0'}`, borderRadius:10, background: sub.active?'#f8faff':'#fafafa' }}>
                       <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
@@ -504,7 +579,8 @@ export default function AdminSettings() {
                         </div>
                         <div style={{ display:'flex', gap:6, flexShrink:0 }}>
                           <button onClick={() => toggleSpecialSub(sub)}
-                            style={{ padding:'5px 12px', fontSize:12, fontWeight:600, border:'none', borderRadius:6, cursor:'pointer', background: sub.active ? '#fffbeb' : '#dcfce7', color: sub.active ? '#b45309' : '#15803d' }}>
+                            style={{ padding:'5px 12px', fontSize:12, fontWeight:600, border:'none', borderRadius:6, cursor:'pointer',
+                              background: sub.active ? '#fffbeb' : '#dcfce7', color: sub.active ? '#b45309' : '#15803d' }}>
                             {sub.active ? 'Deactivate' : 'Activate'}
                           </button>
                           <button onClick={() => deleteSpecialSub(sub.id)}
@@ -522,7 +598,7 @@ export default function AdminSettings() {
         </div>
       )}
 
-      {/* ── Invite Links ── */}
+      {/* ── Invite Links tab ─────────────────────────────────────────────── */}
       {tab === 'invites' && (
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
           <div className="card">
@@ -534,22 +610,27 @@ export default function AdminSettings() {
                   {[1,3,7,14,30].map(d => <option key={d} value={d}>{d} day{d>1?'s':''}</option>)}
                 </select>
               </div>
-              <button onClick={createInvite} className="btn-primary" style={{ padding:'10px 20px', whiteSpace:'nowrap' }}>Generate Link</button>
+              <button onClick={createInvite} className="btn-primary" style={{ padding:'10px 20px', whiteSpace:'nowrap' }}>
+                Generate Link
+              </button>
             </div>
           </div>
+
           {invites.length === 0 ? (
             <div style={{ textAlign:'center', color:'#94a3b8', padding:24, fontSize:13 }}>No invite links yet</div>
           ) : invites.map(inv => {
             const url     = `${typeof window !== 'undefined' ? window.location.origin : ''}/join?token=${inv.id}`;
-            const exp     = inv.expiresAt?.seconds ? new Date(inv.expiresAt.seconds * 1000) : null;
+            const exp     = inv.expiresAt?.seconds ? new Date(inv.expiresAt.seconds*1000) : null;
             const expired = exp && exp < new Date();
             return (
               <div key={inv.id} className="card" style={{ padding:'14px 16px' }}>
                 <div style={{ display:'flex', gap:10, alignItems:'center', marginBottom:8 }}>
                   <input readOnly value={url} onClick={e => e.target.select()}
                     style={{ flex:1, fontSize:12, fontFamily:'monospace', color:'#475569', background:'#f8fafc' }} />
-                  <button onClick={() => { navigator.clipboard.writeText(url); }} className="btn-ghost" style={{ padding:'6px 14px', fontSize:12, whiteSpace:'nowrap' }}>Copy</button>
-                  <button onClick={() => delInvite(inv.id)} style={{ padding:'6px 12px', fontSize:12, border:'none', background:'#fee2e2', color:'#b91c1c', borderRadius:6, cursor:'pointer' }}>Delete</button>
+                  <button onClick={() => navigator.clipboard.writeText(url)}
+                    className="btn-ghost" style={{ padding:'6px 14px', fontSize:12, whiteSpace:'nowrap' }}>Copy</button>
+                  <button onClick={() => delInvite(inv.id)}
+                    style={{ padding:'6px 12px', fontSize:12, border:'none', background:'#fee2e2', color:'#b91c1c', borderRadius:6, cursor:'pointer' }}>Delete</button>
                 </div>
                 <div style={{ fontSize:11, color: expired ? '#dc2626' : '#94a3b8' }}>
                   {exp ? (expired ? '✕ Expired: ' : '✓ Expires: ') + exp.toLocaleDateString('en-GB') : ''}
