@@ -250,7 +250,10 @@ export default function Sidebar() {
                 <NavItem label="Dashboard"        path="/dashboard"          icon={PATHS.home}     pathname={pathname} onClick={closeDrawer} />
                 <NavItem label="Pay Installment"  path="/installment"        icon={PATHS.pay}      pathname={pathname} onClick={closeDrawer} />
                 <NavItem label="My Ledger"        path="/ledger"             icon={PATHS.ledger}   pathname={pathname} onClick={closeDrawer} />
+                <NavItem label="Expenses"         path="/expenses"           icon={PATHS.expenses} pathname={pathname} onClick={closeDrawer} />
+                <NavItem label="Projects"         path="/investments"        icon={PATHS.invest}   pathname={pathname} onClick={closeDrawer} />
                 <NavItem label="My Profile"       path="/profile"            icon={PATHS.profile}  pathname={pathname} onClick={closeDrawer} />
+                {orgFeatures.fileLibrary      && <NavItem label="File Library"     path="/files"   icon={PATHS.folder}    pathname={pathname} onClick={closeDrawer} />}
                 {orgFeatures.memberListVisible && (
                   <NavItem label="Member Directory" path="/members"          icon={PATHS.directory} pathname={pathname} onClick={closeDrawer} />
                 )}

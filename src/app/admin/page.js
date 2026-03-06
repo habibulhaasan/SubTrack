@@ -1,8 +1,8 @@
-// src/app/admin/page.js  — Verify Payments (admin + cashier)
+// src/app/admin/page.js  — Verify Payments (admin + cashier, filtered by specific accountId)
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, doc, updateDoc, addDoc, getDoc, getDocs, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, addDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
 import Modal from '@/components/Modal';
 
@@ -13,23 +13,29 @@ export default function VerifyPayments() {
   const [filter,   setFilter]   = useState('pending');
   const [search,   setSearch]   = useState('');
   const [saving,   setSaving]   = useState(null);
-  const [detail,   setDetail]   = useState(null);   // payment object for detail modal
+  const [detail,   setDetail]   = useState(null);
 
   const orgId = userData?.activeOrgId;
 
-  // Cashier only sees payments for their assigned methods
-  const cashierMethods = membership?.cashierMethods || [];
+  // Cashier is now filtered by specific account IDs; fall back to methods for old payments
+  const cashierAccountIds = membership?.cashierAccountIds || [];
+  const cashierMethods    = membership?.cashierMethods    || [];
 
   useEffect(() => {
-    if (!orgId) return;
-    if (!isOrgAdmin && !isCashier) return;
+    if (!orgId || (!isOrgAdmin && !isCashier)) return;
 
     const unsub1 = onSnapshot(collection(db, 'organizations', orgId, 'investments'), snap => {
-      let all = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      let all = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
         .sort((a, b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0));
-      // Cashier: filter to only assigned methods
-      if (isCashier && cashierMethods.length > 0) {
-        all = all.filter(p => cashierMethods.includes(p.method));
+
+      // Cashier: only show payments sent to their specific assigned accounts
+      if (isCashier && !isOrgAdmin) {
+        all = all.filter(p => {
+          if (p.accountId) return cashierAccountIds.includes(p.accountId);
+          // Legacy payments without accountId: fall back to method matching
+          return cashierMethods.includes(p.method);
+        });
       }
       setPayments(all);
     });
@@ -47,22 +53,18 @@ export default function VerifyPayments() {
     });
 
     return () => { unsub1(); unsub2(); };
-  }, [orgId, isOrgAdmin, isCashier, cashierMethods.join(',')]);
+  }, [orgId, isOrgAdmin, isCashier, cashierAccountIds.join(','), cashierMethods.join(',')]);
 
   const verify = async (payment, status) => {
     setSaving(payment.id);
     try {
-      const updateData = {
-        status,
-        verifiedAt: serverTimestamp(),
-        verifiedBy: user.uid,
-      };
-      await updateDoc(doc(db, 'organizations', orgId, 'investments', payment.id), updateData);
-      const m      = members[payment.userId];
+      await updateDoc(doc(db, 'organizations', orgId, 'investments', payment.id), {
+        status, verifiedAt: serverTimestamp(), verifiedBy: user.uid,
+      });
       const months = (payment.paidMonths||[]).join(', ') || 'your payment';
-      const msg    = status === 'verified'
+      const msg = status === 'verified'
         ? `✅ Your payment for ${months} has been verified. Amount: ৳${payment.amount?.toLocaleString()}`
-        : `❌ Your payment for ${months} has been rejected. Please contact admin for details.`;
+        : `❌ Your payment for ${months} has been rejected. Please contact admin.`;
       await addDoc(collection(db, 'organizations', orgId, 'notifications'), {
         userId: payment.userId, message: msg, read: false, createdAt: serverTimestamp(),
       });
@@ -76,16 +78,14 @@ export default function VerifyPayments() {
     const m  = members[p.userId];
     const sf = !search
       || (m?.nameEnglish||'').toLowerCase().includes(search.toLowerCase())
-      || (p.txId||'').toLowerCase().includes(search.toLowerCase());
+      || (p.txId||'').toLowerCase().includes(search.toLowerCase())
+      || (p.accountNumber||'').includes(search);
     return mf && sf;
   });
 
-  // Stats
-  const myVerified = payments.filter(p => p.status === 'verified' && p.verifiedBy === user?.uid);
-  const myVerifiedTotal = myVerified.reduce((s, p) => s + (p.amount||0), 0);
-  const orgTotal        = payments.filter(p => p.status === 'verified').reduce((s, p) => s + (p.amount||0), 0);
+  const myVerifiedTotal = payments.filter(p => p.status === 'verified' && p.verifiedBy === user?.uid).reduce((s,p) => s+(p.amount||0), 0);
+  const orgTotal        = payments.filter(p => p.status === 'verified').reduce((s,p) => s+(p.amount||0), 0);
   const pendingCount    = payments.filter(p => p.status === 'pending').length;
-
   const isCashierView   = isCashier && !isOrgAdmin;
 
   return (
@@ -100,24 +100,21 @@ export default function VerifyPayments() {
           <div className="page-title">Verify Payments</div>
           <div className="page-subtitle">
             {pendingCount} pending
-            {isCashierView && cashierMethods.length > 0 && (
-              <span style={{ marginLeft:8 }}>· Your methods: {cashierMethods.join(', ')}</span>
+            {isCashierView && cashierAccountIds.length > 0 && (
+              <span style={{ marginLeft:8 }}>· {cashierAccountIds.length} account{cashierAccountIds.length>1?'s':''} assigned to you</span>
             )}
           </div>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="stats-row" style={{ gridTemplateColumns: 'repeat(3,1fr)', marginBottom:20 }}>
+      <div className="stats-row" style={{ gridTemplateColumns:'repeat(3,1fr)', marginBottom:20 }}>
         <div className="stat-card">
           <div className="stat-label">Org Total Received</div>
           <div className="stat-value" style={{ color:'#16a34a' }}>৳{orgTotal.toLocaleString()}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">{isCashierView ? 'Verified by Me' : 'Total Verified'}</div>
-          <div className="stat-value" style={{ color:'#2563eb' }}>
-            ৳{isCashierView ? myVerifiedTotal.toLocaleString() : orgTotal.toLocaleString()}
-          </div>
+          <div className="stat-value" style={{ color:'#2563eb' }}>৳{isCashierView ? myVerifiedTotal.toLocaleString() : orgTotal.toLocaleString()}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Pending</div>
@@ -125,18 +122,14 @@ export default function VerifyPayments() {
         </div>
       </div>
 
-      {/* Filters */}
       <div style={{ display:'flex', gap:10, marginBottom:20, flexWrap:'wrap' }}>
         <input value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Search by member name or TxID…"
-          style={{ flex:1, minWidth:200 }} />
+          placeholder="Search by member, TxID, or account number…" style={{ flex:1, minWidth:200 }} />
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
           {['pending','verified','rejected','all'].map(f => (
             <button key={f} onClick={() => setFilter(f)}
               className={filter === f ? 'btn-primary' : 'btn-ghost'}
-              style={{ padding:'9px 14px', fontSize:13, textTransform:'capitalize' }}>
-              {f}
-            </button>
+              style={{ padding:'9px 14px', fontSize:13, textTransform:'capitalize' }}>{f}</button>
           ))}
         </div>
       </div>
@@ -144,7 +137,7 @@ export default function VerifyPayments() {
       <div className="table-wrap"><div className="table-scroll">
         <table>
           <thead>
-            <tr><th>Member</th><th>Months</th><th>Method</th><th>TxID</th><th>Amount</th><th>Date</th><th>Status</th><th>Action</th></tr>
+            <tr><th>Member</th><th>Months</th><th>Method / Account</th><th>TxID</th><th>Amount</th><th>Date</th><th>Status</th><th>Action</th></tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
@@ -158,7 +151,11 @@ export default function VerifyPayments() {
                     <div style={{ fontSize:11, color:'#94a3b8' }}>{m?.idNo||p.userId?.slice(0,8)||'—'}</div>
                   </td>
                   <td style={{ fontSize:11, maxWidth:120, color:'#475569' }}>{(p.paidMonths||[]).join(', ')||'—'}</td>
-                  <td style={{ fontSize:12 }}>{p.method}</td>
+                  <td>
+                    <div style={{ fontSize:12, fontWeight:600 }}>{p.method}</div>
+                    {p.accountLabel && <div style={{ fontSize:11, color:'#64748b' }}>{p.accountLabel}</div>}
+                    {p.accountNumber && <div style={{ fontFamily:'monospace', fontSize:10, color:'#94a3b8' }}>{p.accountNumber}</div>}
+                  </td>
                   <td style={{ fontFamily:'monospace', fontSize:11, color:'#475569', maxWidth:100, overflow:'hidden', textOverflow:'ellipsis' }}>{p.txId||'—'}</td>
                   <td style={{ fontWeight:600 }}>৳{p.amount?.toLocaleString()}</td>
                   <td style={{ whiteSpace:'nowrap', fontSize:12, color:'#64748b' }}>
@@ -189,18 +186,18 @@ export default function VerifyPayments() {
         </table>
       </div></div>
 
-      {/* Detail modal */}
       {detail && (
         <Modal title="Payment Detail" onClose={() => setDetail(null)}>
           {(() => {
             const m = members[detail.userId];
             return (
               <>
-                <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
+                <div style={{ display:'flex', flexDirection:'column' }}>
                   {[
                     ['Member',   m?.nameEnglish||'Unknown'],
                     ['Member ID',m?.idNo||'—'],
                     ['Method',   detail.method],
+                    ...(detail.accountLabel ? [['Account', `${detail.accountLabel}${detail.accountNumber?' — '+detail.accountNumber:''}`]] : []),
                     ['Tx ID',    detail.txId||'—'],
                     ['Amount',   `৳${detail.amount?.toLocaleString()}`],
                     ['Months',   (detail.paidMonths||[]).join(', ')||'—'],
@@ -217,7 +214,9 @@ export default function VerifyPayments() {
                 {detail.status === 'pending' && (
                   <div style={{ display:'flex', gap:8, marginTop:20 }}>
                     <button onClick={() => verify(detail,'rejected')} disabled={saving===detail.id}
-                      className="btn-danger" style={{ flex:1 }}>Reject</button>
+                      style={{ flex:1, padding:'11px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:600, background:'#fee2e2', color:'#b91c1c' }}>
+                      Reject
+                    </button>
                     <button onClick={() => verify(detail,'verified')} disabled={saving===detail.id}
                       className="btn-primary" style={{ flex:2, justifyContent:'center' }}>
                       {saving===detail.id ? 'Saving…' : '✓ Verify Payment'}

@@ -1,36 +1,33 @@
-// src/app/members/page.js  — Member Directory (feature-gated, read-only for members)
+// src/app/members/page.js  — Member Directory (table view, feature-gated)
 'use client';
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
 
 const getInitials = n => (n||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
 
-function Avatar({ m, size=40 }) {
+const BLOOD_BG = { 'A+':'#fee2e2','A-':'#fecaca','B+':'#fef3c7','B-':'#fed7aa','AB+':'#ede9fe','AB-':'#ddd6fe','O+':'#d1fae5','O-':'#bbf7d0' };
+
+function Avatar({ m, size=30 }) {
   return (
-    <div style={{ width:size, height:size, borderRadius:'50%', background:'#dbeafe', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:size*0.33, color:'#1d4ed8', flexShrink:0, overflow:'hidden' }}>
-      {m.photoURL
-        ? <img src={m.photoURL} style={{ width:'100%', height:'100%', objectFit:'cover' }} alt="" />
-        : getInitials(m.nameEnglish)}
+    <div style={{ width:size, height:size, borderRadius:'50%', background:'#dbeafe', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:size*0.36, color:'#1d4ed8', flexShrink:0, overflow:'hidden' }}>
+      {m.photoURL ? <img src={m.photoURL} style={{ width:'100%', height:'100%', objectFit:'cover' }} alt="" /> : getInitials(m.nameEnglish)}
     </div>
   );
 }
 
-const BLOOD_COLORS = { 'A+':'#fee2e2','A-':'#fecaca','B+':'#fef3c7','B-':'#fed7aa','AB+':'#ede9fe','AB-':'#ddd6fe','O+':'#d1fae5','O-':'#bbf7d0' };
-
 export default function MemberDirectory() {
-  const { userData, orgData, membership } = useAuth();
+  const { userData, orgData } = useAuth();
   const [members, setMembers] = useState([]);
   const [search,  setSearch]  = useState('');
   const [filter,  setFilter]  = useState('all');
 
-  const orgId   = userData?.activeOrgId;
+  const orgId    = userData?.activeOrgId;
   const features = orgData?.features || {};
 
   useEffect(() => {
     if (!orgId || !features.memberListVisible) return;
-    // Real-time listener for members
     const unsub = onSnapshot(collection(db, 'organizations', orgId, 'members'), async snap => {
       const docs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(m => m.approved);
       const merged = await Promise.all(docs.map(async m => {
@@ -56,7 +53,7 @@ export default function MemberDirectory() {
     );
   }
 
-  const bloodGroups = [...new Set(members.map(m => m.bloodGroup).filter(Boolean))].sort();
+  const bloodGroups    = [...new Set(members.map(m => m.bloodGroup).filter(Boolean))].sort();
   const committeeRoles = [...new Set(members.map(m => m.committeeRole).filter(Boolean))].sort();
 
   const filtered = members.filter(m => {
@@ -66,12 +63,13 @@ export default function MemberDirectory() {
       || (m.phone||'').includes(search)
       || (m.email||'').toLowerCase().includes(q)
       || (m.bloodGroup||'').toLowerCase().includes(q)
-      || (m.committeeRole||'').toLowerCase().includes(q);
-    const ff = filter === 'all'
-      || (filter === m.bloodGroup)
-      || (filter === m.committeeRole);
+      || (m.committeeRole||'').toLowerCase().includes(q)
+      || (m.idNo||'').includes(search);
+    const ff = filter === 'all' || filter === m.bloodGroup || filter === m.committeeRole;
     return sf && ff;
   });
+
+  const showCommittee = features.committeeRoles && committeeRoles.length > 0;
 
   return (
     <div className="page-wrap animate-fade">
@@ -90,67 +88,85 @@ export default function MemberDirectory() {
       {/* Search + filter */}
       <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap' }}>
         <input value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Search name, phone, email, blood group…"
+          placeholder="Search name, phone, email, blood group, ID…"
           style={{ flex:1, minWidth:180 }} />
         {(bloodGroups.length > 0 || committeeRoles.length > 0) && (
-          <select value={filter} onChange={e => setFilter(e.target.value)} style={{ minWidth:140 }}>
+          <select value={filter} onChange={e => setFilter(e.target.value)} style={{ minWidth:160 }}>
             <option value="all">All Members</option>
-            {bloodGroups.length > 0 && <optgroup label="Blood Group">
-              {bloodGroups.map(bg => <option key={bg} value={bg}>Blood: {bg}</option>)}
-            </optgroup>}
-            {features.committeeRoles && committeeRoles.length > 0 && <optgroup label="Committee Role">
-              {committeeRoles.map(r => <option key={r} value={r}>{r}</option>)}
-            </optgroup>}
+            {bloodGroups.length > 0 && (
+              <optgroup label="Blood Group">
+                {bloodGroups.map(bg => <option key={bg} value={bg}>🩸 {bg}</option>)}
+              </optgroup>
+            )}
+            {features.committeeRoles && committeeRoles.length > 0 && (
+              <optgroup label="Committee Role">
+                {committeeRoles.map(r => <option key={r} value={r}>🎖️ {r}</option>)}
+              </optgroup>
+            )}
           </select>
         )}
       </div>
 
-      {/* Cards grid */}
       {filtered.length === 0 ? (
         <div className="card" style={{ textAlign:'center', padding:'48px 20px', color:'#94a3b8' }}>
-          {search ? 'No members match your search.' : 'No approved members yet.'}
+          {search || filter !== 'all' ? 'No members match your search.' : 'No approved members yet.'}
         </div>
       ) : (
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))', gap:14 }}>
-          {filtered.map(m => (
-            <div key={m.id} className="card" style={{ padding:'18px 20px', display:'flex', gap:14, alignItems:'flex-start' }}>
-              <Avatar m={m} size={48} />
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontWeight:700, fontSize:14, color:'#0f172a', marginBottom:2 }}>{m.nameEnglish||'(no name)'}</div>
-                {m.nameBengali && <div style={{ fontSize:12, color:'#64748b', marginBottom:6 }}>{m.nameBengali}</div>}
-
-                {/* Committee role badge */}
-                {features.committeeRoles && m.committeeRole && (
-                  <div style={{ marginBottom:8 }}>
-                    <span className="badge badge-blue" style={{ fontSize:10 }}>🎖️ {m.committeeRole}</span>
-                  </div>
-                )}
-
-                <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-                  {m.phone && (
-                    <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'#475569' }}>
-                      <span style={{ color:'#94a3b8' }}>📞</span>
-                      <a href={`tel:${m.phone}`} style={{ color:'#475569', textDecoration:'none' }}>{m.phone}</a>
+        <div className="table-wrap"><div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Member</th>
+                <th>Phone</th>
+                <th>Email</th>
+                <th>Blood</th>
+                {showCommittee && <th>Committee</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((m, i) => (
+                <tr key={m.id}>
+                  <td style={{ fontSize:12, color:'#94a3b8', width:36 }}>{i+1}</td>
+                  <td>
+                    <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                      <Avatar m={m} size={32} />
+                      <div>
+                        <div style={{ fontWeight:600, fontSize:13, color:'#0f172a' }}>{m.nameEnglish||'(no name)'}</div>
+                        {m.nameBengali && <div style={{ fontSize:11, color:'#94a3b8' }}>{m.nameBengali}</div>}
+                        {m.idNo && <div style={{ fontSize:10, color:'#94a3b8', fontFamily:'monospace' }}>{m.idNo}</div>}
+                      </div>
                     </div>
+                  </td>
+                  <td>
+                    {m.phone
+                      ? <a href={`tel:${m.phone}`} style={{ fontSize:13, color:'#475569', textDecoration:'none' }}>{m.phone}</a>
+                      : <span style={{ color:'#94a3b8', fontSize:12 }}>—</span>}
+                  </td>
+                  <td style={{ fontSize:12, color:'#475569', maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    {m.email || <span style={{ color:'#94a3b8' }}>—</span>}
+                  </td>
+                  <td>
+                    {m.bloodGroup
+                      ? (
+                        <span style={{ padding:'2px 9px', borderRadius:99, fontSize:12, fontWeight:700, background: BLOOD_BG[m.bloodGroup]||'#f1f5f9', color:'#0f172a' }}>
+                          {m.bloodGroup}
+                        </span>
+                      )
+                      : <span style={{ color:'#94a3b8', fontSize:12 }}>—</span>}
+                  </td>
+                  {showCommittee && (
+                    <td>
+                      {m.committeeRole
+                        ? <span className="badge badge-blue" style={{ fontSize:11 }}>🎖️ {m.committeeRole}</span>
+                        : <span style={{ color:'#94a3b8', fontSize:12 }}>—</span>}
+                    </td>
                   )}
-                  {m.email && (
-                    <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'#475569', minWidth:0 }}>
-                      <span style={{ color:'#94a3b8', flexShrink:0 }}>✉️</span>
-                      <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{m.email}</span>
-                    </div>
-                  )}
-                  {m.bloodGroup && (
-                    <div style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:12, marginTop:2 }}>
-                      <span style={{ padding:'2px 8px', borderRadius:99, fontSize:11, fontWeight:700, background: BLOOD_COLORS[m.bloodGroup]||'#f1f5f9', color:'#0f172a' }}>
-                        🩸 {m.bloodGroup}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div></div>
       )}
     </div>
   );

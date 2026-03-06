@@ -21,111 +21,127 @@ function getMonths(startDate) {
 
 export default function Installment() {
   const { user, userData, orgData, membership } = useAuth();
-  const [paidMonths, setPaidMonths]     = useState(new Set());
-  const [paidSpecial, setPaidSpecial]   = useState(new Set()); // set of special sub IDs paid
-  const [specialSubs, setSpecialSubs]   = useState([]);
-  const [selected, setSelected]         = useState([]);
-  const [selectedSpecial, setSelectedSpecial] = useState(null); // one special sub at a time
-  const [method, setMethod]             = useState('');
-  const [txId, setTxId]                 = useState('');
-  const [loading, setLoading]           = useState(false);
-  const [success, setSuccess]           = useState(false);
+  const [paidMonths,      setPaidMonths]      = useState(new Set());
+  const [paidSpecial,     setPaidSpecial]     = useState(new Set());
+  const [specialSubs,     setSpecialSubs]     = useState([]);
+  const [selected,        setSelected]        = useState([]);
+  const [selectedSpecial, setSelectedSpecial] = useState(null);
+  const [method,          setMethod]          = useState('');
+  const [selectedAccount, setSelectedAccount] = useState(null); // { id, label, number }
+  const [txId,            setTxId]            = useState('');
+  const [loading,         setLoading]         = useState(false);
+  const [success,         setSuccess]         = useState(false);
+  const [payMode,         setPayMode]         = useState('monthly');
+
   const orgId    = userData?.activeOrgId;
   const settings = orgData?.settings || {};
 
-  const monthlyEnabled = settings.monthlyEnabled !== false; // default true
-  const enabledMethods = settings.paymentMethods || DEFAULT_METHODS;
-  const accountDetails = settings.accountDetails || {};
+  const monthlyEnabled  = settings.monthlyEnabled !== false;
+  const enabledMethods  = settings.paymentMethods  || DEFAULT_METHODS;
+  // New multi-account format; fall back to old accountDetails for legacy display
+  const paymentAccounts = settings.paymentAccounts || {};
+  const accountDetails  = settings.accountDetails  || {};
 
-  const getGatewayFee = (m) => {
+  const getGatewayFee = m => {
     const cfg = settings.gatewayFees?.[m];
-    if (cfg?.enabled && cfg?.rate) return Number(cfg.rate) / 100;
-    return 0;
+    return (cfg?.enabled && cfg?.rate) ? Number(cfg.rate) / 100 : 0;
   };
 
   const baseAmount = (settings.uniformAmount === false && membership?.customAmount != null)
     ? membership.customAmount : (settings.baseAmount || 0);
 
+  // Set initial method
   useEffect(() => {
-    if (enabledMethods.length > 0 && !method) setMethod(enabledMethods[0]);
+    if (enabledMethods.length > 0 && !method) {
+      setMethod(enabledMethods[0]);
+    }
   }, [enabledMethods.join(',')]);
+
+  // When method changes, auto-select first account if only one
+  useEffect(() => {
+    if (!method || method === 'Cash') { setSelectedAccount(null); return; }
+    const accs = paymentAccounts[method] || [];
+    if (accs.length === 1) setSelectedAccount(accs[0]);
+    else setSelectedAccount(null);
+  }, [method]);
 
   // Load paid months
   useEffect(() => {
     if (!user || !orgId) return;
     const q = query(collection(db,'organizations',orgId,'investments'), where('userId','==',user.uid));
     getDocs(q).then(snap => {
-      const paid = new Set();
-      snap.docs.forEach(d => {
-        const data = d.data();
-        if (data.status !== 'rejected') (data.paidMonths || []).forEach(m => paid.add(m));
-      });
-      setPaidMonths(paid);
-      // also collect paid special sub IDs
+      const paid  = new Set();
       const pSpec = new Set();
       snap.docs.forEach(d => {
         const data = d.data();
+        if (data.status !== 'rejected') (data.paidMonths || []).forEach(m => paid.add(m));
         if (data.specialSubId && data.status !== 'rejected') pSpec.add(data.specialSubId);
       });
+      setPaidMonths(paid);
       setPaidSpecial(pSpec);
     });
   }, [user, orgId]);
 
-  // Load active special subscriptions
+  // Load special subs
   useEffect(() => {
     if (!orgId) return;
-    const unsub = onSnapshot(
-      collection(db, 'organizations', orgId, 'specialSubscriptions'),
-      snap => {
-        const now = new Date();
-        setSpecialSubs(
-          snap.docs.map(d => ({ id:d.id, ...d.data() }))
-            .filter(s => s.active && s.deadline && new Date(s.deadline) >= now)
-            .sort((a,b) => a.deadline.localeCompare(b.deadline))
-        );
-      }
-    );
+    const unsub = onSnapshot(collection(db,'organizations',orgId,'specialSubscriptions'), snap => {
+      const now = new Date();
+      setSpecialSubs(
+        snap.docs.map(d => ({ id:d.id, ...d.data() }))
+          .filter(s => s.active && s.deadline && new Date(s.deadline) >= now)
+          .sort((a,b) => a.deadline.localeCompare(b.deadline))
+      );
+    });
     return unsub;
   }, [orgId]);
+
+  // Fix payMode if monthly is disabled
+  useEffect(() => {
+    if (!monthlyEnabled) setPayMode('special');
+  }, [monthlyEnabled]);
 
   const allMonths    = getMonths(settings.startDate);
   const unpaidMonths = allMonths.filter(m => !paidMonths.has(m));
   const dueDay       = settings.dueDate || 10;
   const penalty      = settings.lateFeeEnabled ? (settings.penalty || 0) : 0;
+  const isLate       = m => { const [y,mo] = m.split('-').map(Number); return new Date() > new Date(y,mo-1,dueDay); };
+  const toggle       = m => setSelected(p => p.includes(m) ? p.filter(x => x !== m) : [...p,m]);
 
-  const isLate = (m) => {
-    const [y, mo] = m.split('-').map(Number);
-    return new Date() > new Date(y, mo - 1, dueDay);
-  };
-
-  const toggle = (m) => setSelected(p => p.includes(m) ? p.filter(x => x !== m) : [...p, m]);
-
-  // Payment mode: 'monthly' | 'special'
-  const [payMode, setPayMode] = useState(monthlyEnabled ? 'monthly' : 'special');
-
-  // Compute totals
   const isSpecialMode = payMode === 'special' && selectedSpecial;
-  const totalBase    = isSpecialMode ? (selectedSpecial?.amount || 0) : selected.length * baseAmount;
-  const totalPenalty = isSpecialMode ? 0 : selected.filter(m => isLate(m)).length * penalty;
-  const feeRate      = getGatewayFee(method);
-  const fee          = Math.round((totalBase + totalPenalty) * feeRate);
-  const grandTotal   = totalBase + totalPenalty + fee;
+  const totalBase     = isSpecialMode ? (selectedSpecial?.amount || 0) : selected.length * baseAmount;
+  const totalPenalty  = isSpecialMode ? 0 : selected.filter(m => isLate(m)).length * penalty;
+  const feeRate       = getGatewayFee(method);
+  const fee           = Math.round((totalBase + totalPenalty) * feeRate);
+  const grandTotal    = totalBase + totalPenalty + fee;
 
-  const handleSubmit = async (e) => {
+  // Accounts for the currently selected method
+  const methodAccounts = method && method !== 'Cash' ? (paymentAccounts[method] || []) : [];
+  const needsAccountPick = methodAccounts.length > 1 && !selectedAccount;
+
+  const handleSubmit = async e => {
     e.preventDefault();
     if (payMode === 'monthly' && !selected.length) { alert('Please select at least one month.'); return; }
     if (payMode === 'special' && !selectedSpecial)  { alert('Please select a special subscription.'); return; }
     if (!method) { alert('Please select a payment method.'); return; }
+    if (method !== 'Cash' && methodAccounts.length > 1 && !selectedAccount) {
+      alert('Please select which account you sent the payment to.'); return;
+    }
     if (method !== 'Cash' && !txId.trim()) { alert('Please enter the Transaction ID.'); return; }
     setLoading(true);
     try {
+      const acc = selectedAccount || (methodAccounts.length === 1 ? methodAccounts[0] : null);
       const payload = {
-        userId:      user.uid,
-        amount:      grandTotal,
+        userId:    user.uid,
+        amount:    grandTotal,
         method,
-        txId:        txId.trim(),
-        status:      'pending',
-        createdAt:   serverTimestamp(),
+        txId:      txId.trim(),
+        status:    'pending',
+        createdAt: serverTimestamp(),
+        // account info for cashier routing
+        accountId:     acc?.id     || null,
+        accountLabel:  acc?.label  || null,
+        accountNumber: acc?.number || null,
       };
       if (payMode === 'monthly') {
         payload.paidMonths  = selected;
@@ -143,6 +159,7 @@ export default function Installment() {
       setSuccess(true);
       setSelected([]);
       setSelectedSpecial(null);
+      setSelectedAccount(null);
       setTxId('');
     } catch (err) { alert('Error: ' + err.message); }
     setLoading(false);
@@ -166,6 +183,10 @@ export default function Installment() {
   );
 
   const hasAnything = monthlyEnabled || specialSubs.length > 0;
+
+  // Build account display for the info card
+  const hasMultiAccounts = enabledMethods.some(m => m !== 'Cash' && (paymentAccounts[m]||[]).length > 0);
+  const hasLegacyAccounts = Object.keys(accountDetails).length > 0 && !hasMultiAccounts;
 
   return (
     <div className="page-wrap animate-fade">
@@ -191,19 +212,36 @@ export default function Installment() {
 
       {hasAnything && (
         <form onSubmit={handleSubmit} style={{ display:'grid', gap:16 }}>
-          {/* Payment accounts info */}
-          {Object.keys(accountDetails).length > 0 && (
+
+          {/* Payment accounts reference card */}
+          {(hasMultiAccounts || hasLegacyAccounts) && (
             <div className="card" style={{ background:'#f0fdf4', border:'1px solid #bbf7d0' }}>
               <div style={{ fontWeight:600, fontSize:13, color:'#15803d', marginBottom:10 }}>
                 📋 Send your payment to one of these accounts:
               </div>
               <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                {enabledMethods.filter(m => m !== 'Cash' && accountDetails[m]).map(m => (
-                  <div key={m} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 12px', background:'#fff', borderRadius:8, border:'1px solid #bbf7d0' }}>
-                    <span style={{ fontSize:12, fontWeight:700, color:'#475569', minWidth:110 }}>{m}</span>
-                    <span style={{ fontFamily:'monospace', fontSize:14, fontWeight:700, color:'#0f172a' }}>{accountDetails[m]}</span>
-                  </div>
-                ))}
+                {hasMultiAccounts ? (
+                  enabledMethods.filter(m => m !== 'Cash').map(m => {
+                    const accs = paymentAccounts[m] || [];
+                    if (accs.length === 0) return null;
+                    return accs.map(a => (
+                      <div key={a.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 12px', background:'#fff', borderRadius:8, border:'1px solid #bbf7d0' }}>
+                        <div>
+                          <span style={{ fontSize:12, fontWeight:700, color:'#475569' }}>{m}</span>
+                          <span style={{ fontSize:11, color:'#94a3b8', marginLeft:8 }}>{a.label}</span>
+                        </div>
+                        <span style={{ fontFamily:'monospace', fontSize:13, fontWeight:700, color:'#0f172a' }}>{a.number}</span>
+                      </div>
+                    ));
+                  })
+                ) : (
+                  enabledMethods.filter(m => m !== 'Cash' && accountDetails[m]).map(m => (
+                    <div key={m} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 12px', background:'#fff', borderRadius:8, border:'1px solid #bbf7d0' }}>
+                      <span style={{ fontSize:12, fontWeight:700, color:'#475569', minWidth:110 }}>{m}</span>
+                      <span style={{ fontFamily:'monospace', fontSize:14, fontWeight:700, color:'#0f172a' }}>{accountDetails[m]}</span>
+                    </div>
+                  ))
+                )}
                 {enabledMethods.includes('Cash') && (
                   <div style={{ fontSize:12, color:'#15803d', padding:'4px 12px' }}>
                     💵 Cash — pay directly to your organization admin
@@ -213,7 +251,7 @@ export default function Installment() {
             </div>
           )}
 
-          {/* Mode switcher — only show if BOTH monthly and special exist */}
+          {/* Mode switcher */}
           {monthlyEnabled && specialSubs.length > 0 && (
             <div style={{ display:'flex', gap:8 }}>
               <button type="button" onClick={() => { setPayMode('monthly'); setSelectedSpecial(null); }}
@@ -234,7 +272,7 @@ export default function Installment() {
           )}
 
           {/* Monthly months picker */}
-          {(payMode === 'monthly' && monthlyEnabled) && (
+          {payMode === 'monthly' && monthlyEnabled && (
             <div className="card">
               <div style={{ fontWeight:600, fontSize:14, color:'#0f172a', marginBottom:4 }}>Select Months to Pay</div>
               <p style={{ fontSize:12, color:'#94a3b8', marginBottom:14 }}>Only unpaid months are shown.</p>
@@ -265,11 +303,11 @@ export default function Installment() {
             </div>
           )}
 
-          {/* Special subscriptions picker */}
+          {/* Special subs picker */}
           {(payMode === 'special' || (!monthlyEnabled && specialSubs.length > 0)) && (
             <div className="card">
               <div style={{ fontWeight:600, fontSize:14, color:'#0f172a', marginBottom:4 }}>Special Subscriptions</div>
-              <p style={{ fontSize:12, color:'#94a3b8', marginBottom:14 }}>Select one to pay. Already paid subscriptions are hidden.</p>
+              <p style={{ fontSize:12, color:'#94a3b8', marginBottom:14 }}>Select one to pay.</p>
               {specialSubs.filter(s => !paidSpecial.has(s.id)).length === 0 ? (
                 <div style={{ textAlign:'center', padding:'24px 0', color:'#94a3b8' }}>
                   <div style={{ fontSize:28, marginBottom:8 }}>✅</div>
@@ -306,13 +344,13 @@ export default function Installment() {
             </div>
           )}
 
-          {/* Payment method + TxID + summary */}
+          {/* Payment method + account picker + TxID */}
           {((payMode === 'monthly' && selected.length > 0) || (payMode === 'special' && selectedSpecial) || (!monthlyEnabled && selectedSpecial)) && (
             <div className="card">
               <div style={{ fontWeight:600, fontSize:14, color:'#0f172a', marginBottom:14 }}>Payment Method</div>
               <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:16 }}>
                 {enabledMethods.map(m => (
-                  <button key={m} type="button" onClick={() => { setMethod(m); setTxId(''); }}
+                  <button key={m} type="button" onClick={() => { setMethod(m); setTxId(''); setSelectedAccount(null); }}
                     style={{ padding:'9px 18px', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer', transition:'all 0.15s',
                       border:     method === m ? '2px solid #2563eb' : '1px solid #e2e8f0',
                       background: method === m ? '#eff6ff' : '#fff',
@@ -321,6 +359,42 @@ export default function Installment() {
                   </button>
                 ))}
               </div>
+
+              {/* Account picker — shown when method has multiple accounts */}
+              {method !== 'Cash' && methodAccounts.length > 1 && (
+                <div style={{ marginBottom:16 }}>
+                  <label className="form-label">Which account did you send to? *</label>
+                  <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                    {methodAccounts.map(acc => {
+                      const sel = selectedAccount?.id === acc.id;
+                      return (
+                        <button key={acc.id} type="button" onClick={() => setSelectedAccount(sel ? null : acc)}
+                          style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 14px', borderRadius:8, textAlign:'left', cursor:'pointer',
+                            border:     sel ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                            background: sel ? '#eff6ff' : '#fafafa' }}>
+                          <div style={{ width:16, height:16, borderRadius:'50%', border:`2px solid ${sel?'#2563eb':'#cbd5e1'}`, background: sel?'#2563eb':'transparent', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                            {sel && <div style={{ width:6, height:6, borderRadius:'50%', background:'#fff' }} />}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight:600, fontSize:13, color: sel?'#1d4ed8':'#0f172a' }}>{acc.label}</div>
+                            <div style={{ fontFamily:'monospace', fontSize:12, color:'#475569' }}>{acc.number}</div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Show selected account info if only one */}
+              {method !== 'Cash' && methodAccounts.length === 1 && (
+                <div style={{ marginBottom:14, padding:'10px 14px', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:8 }}>
+                  <div style={{ fontSize:12, color:'#15803d', fontWeight:600 }}>
+                    Send to: <span style={{ fontFamily:'monospace' }}>{methodAccounts[0].number}</span>
+                    <span style={{ fontWeight:400, marginLeft:6 }}>({methodAccounts[0].label})</span>
+                  </div>
+                </div>
+              )}
 
               {method === 'Cash' && (
                 <div className="alert alert-info" style={{ marginBottom:14, fontSize:13 }}>
@@ -336,7 +410,7 @@ export default function Installment() {
                 </div>
               )}
 
-              {/* Payment summary */}
+              {/* Summary */}
               <div style={{ background:'#f8fafc', borderRadius:8, padding:'14px 16px', marginBottom:16 }}>
                 <div style={{ fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:10 }}>Payment Summary</div>
                 {payMode === 'monthly' ? (
@@ -352,7 +426,7 @@ export default function Installment() {
                 )}
                 {totalPenalty > 0 && (
                   <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, marginBottom:6 }}>
-                    <span style={{ color:'#64748b' }}>Late fee (org profit)</span>
+                    <span style={{ color:'#64748b' }}>Late fee</span>
                     <span style={{ fontWeight:600, color:'#dc2626' }}>৳{totalPenalty.toLocaleString()}</span>
                   </div>
                 )}
@@ -368,8 +442,9 @@ export default function Installment() {
                 </div>
               </div>
 
-              <button type="submit" disabled={loading} className="btn-primary" style={{ width:'100%', justifyContent:'center', padding:'13px' }}>
-                {loading ? 'Submitting…' : `Submit Payment — ৳${grandTotal.toLocaleString()}`}
+              <button type="submit" disabled={loading || needsAccountPick} className="btn-primary"
+                style={{ width:'100%', justifyContent:'center', padding:'13px', opacity: needsAccountPick ? .5 : 1 }}>
+                {loading ? 'Submitting…' : needsAccountPick ? 'Select account above first' : `Submit Payment — ৳${grandTotal.toLocaleString()}`}
               </button>
             </div>
           )}
