@@ -16,37 +16,39 @@ const Icon = ({ d, size = 16 }) => (
 );
 
 const PATHS = {
-  home:       'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
-  pay:        'M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
-  ledger:     'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8',
-  expenses:   'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
-  invest:     'M22 12h-4l-3 9L9 3l-3 9H2',
-  profile:    'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
-  verify:     'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',
-  members:    'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
-  settings:   'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
-  bell:       'M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0',
-  logout:     'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
-  summary:    'M18 20V10M12 20V4M6 20v-6',                                             // bar chart
-  income:     'M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
-  penalty:    'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01',
-  orgs:       'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10',
-  shield:     'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
-  chevron:    'M9 18l6-6-6-6',
-  grid:       'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z',
-  heart:      'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z',
-  menu:       'M3 12h18M3 6h18M3 18h18',
-  x:          'M18 6L6 18M6 6l12 12',
-  switch:     'M8 3L4 7l4 4M4 7h16M16 21l4-4-4-4M20 17H4',
-  star:       'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z',
-  folder:     'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z',
-  // Distinct icons for items that were duplicated:
-  monthlyLedger: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',              // list lines
-  distribute:    'M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6',                        // share/split arrows
-  reports:       'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M12 18v-6M9 15l3 3 3-3', // doc with chart
-  charity:       'M12 21.593c-5.63-5.539-11-10.297-11-14.402 0-3.791 3.068-5.191 5.281-5.191 1.312 0 4.151.501 5.719 4.457 1.59-3.968 4.464-4.447 5.726-4.447 2.54 0 5.274 1.621 5.274 5.181 0 4.069-5.136 8.625-11 14.402z', // heart fill
-  portfolio:     'M2 20h20M5 20V10l7-7 7 7v10M9 20v-5h6v5',                         // building/portfolio
-  subscription:  'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z', // package/box
+  home:         'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+  pay:          'M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
+  ledger:       'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8',
+  expenses:     'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
+  invest:       'M22 12h-4l-3 9L9 3l-3 9H2',
+  profile:      'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+  verify:       'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',
+  members:      'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+  settings:     'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
+  bell:         'M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0',
+  logout:       'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
+  summary:      'M18 20V10M12 20V4M6 20v-6',
+  income:       'M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
+  penalty:      'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01',
+  orgs:         'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10',
+  shield:       'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
+  chevron:      'M9 18l6-6-6-6',
+  grid:         'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z',
+  heart:        'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z',
+  menu:         'M3 12h18M3 6h18M3 18h18',
+  x:            'M18 6L6 18M6 6l12 12',
+  switch:       'M8 3L4 7l4 4M4 7h16M16 21l4-4-4-4M20 17H4',
+  star:         'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z',
+  folder:       'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z',
+  monthlyLedger:'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
+  distribute:   'M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6',
+  reports:      'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M12 18v-6M9 15l3 3 3-3',
+  charity:      'M12 21.593c-5.63-5.539-11-10.297-11-14.402 0-3.791 3.068-5.191 5.281-5.191 1.312 0 4.151.501 5.719 4.457 1.59-3.968 4.464-4.447 5.726-4.447 2.54 0 5.274 1.621 5.274 5.181 0 4.069-5.136 8.625-11 14.402z',
+  portfolio:    'M2 20h20M5 20V10l7-7 7 7v10M9 20v-5h6v5',
+  subscription: 'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z',
+  cashier:      'M2 7h20v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7zM2 7l10-5 10 5M12 12v4',
+  transfer:     'M8 7h12M8 12h12M8 17h12M4 7h.01M4 12h.01M4 17h.01',
+  directory:    'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
 };
 
 const PUBLIC = ['/', '/login', '/register', '/forgot-password', '/create-org', '/select-org', '/join', '/pending-approval'];
@@ -71,17 +73,15 @@ function SectionLabel({ label }) {
   return <p style={{ fontSize:'10px', fontWeight:'700', color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.1em', padding:'16px 12px 6px' }}>{label}</p>;
 }
 
-// Modal for superadmin to pick which org to enter
 function OrgPickerModal({ onClose, onPick }) {
-  const { user, userData } = useAuth();
-  const [orgs, setOrgs] = useState([]);
+  const { user } = useAuth();
+  const [orgs, setOrgs]       = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
     (async () => {
       try {
-        // Superadmin can read all orgs
         const snap = await getDocs(collection(db, 'organizations'));
         setOrgs(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.name||'').localeCompare(b.name||'')));
       } catch (e) { console.error(e); }
@@ -127,12 +127,12 @@ function OrgPickerModal({ onClose, onPick }) {
 }
 
 export default function Sidebar() {
-  const [open, setOpen]         = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [notifs, setNotifs]     = useState([]);
+  const [open,          setOpen]          = useState(false);
+  const [notifOpen,     setNotifOpen]     = useState(false);
+  const [notifs,        setNotifs]        = useState([]);
   const [showOrgPicker, setShowOrgPicker] = useState(false);
   const pathname = usePathname();
-  const { user, userData, orgData, membership, isSuperAdmin, isOrgAdmin, accessMode, switchToOrgMode, switchToSuperAdminMode } = useAuth();
+  const { user, userData, orgData, membership, isSuperAdmin, isOrgAdmin, isCashier, accessMode, switchToOrgMode, switchToSuperAdminMode } = useAuth();
 
   const isPublic = PUBLIC.some(r => pathname === r || pathname.startsWith(r + '/'));
   const inOrgMode = isSuperAdmin && accessMode === 'org';
@@ -150,7 +150,7 @@ export default function Sidebar() {
 
   if (isPublic || !user || !userData) return null;
 
-  const unread  = notifs.filter(n => !n.read).length;
+  const unread   = notifs.filter(n => !n.read).length;
   const initials = (userData?.nameEnglish || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   const orgName  = orgData?.name || 'My Organization';
 
@@ -167,16 +167,15 @@ export default function Sidebar() {
     const orgId = userData?.activeOrgId;
     if (orgId) deleteDoc(doc(db, 'organizations', orgId, 'notifications', id)).catch(() => {});
   };
-  const logout = async () => { await signOut(auth); window.location.href = '/login'; };
+  const logout      = async () => { await signOut(auth); window.location.href = '/login'; };
   const closeDrawer = () => setOpen(false);
 
-  // org features enabled for this org
   const orgFeatures = orgData?.features || {};
 
   const sidebarContent = (
     <div className="sidebar-inner">
 
-      {/* Logo / header — never scrolls */}
+      {/* Logo / header */}
       <div className="sidebar-header" style={{ padding:'20px 16px 16px', borderBottom:'1px solid #e2e8f0' }}>
         <Link href={inOrgMode ? '/dashboard' : (isSuperAdmin ? '/superadmin' : '/dashboard')}
           style={{ textDecoration:'none', display:'flex', alignItems:'center', gap:'10px' }}>
@@ -193,7 +192,6 @@ export default function Sidebar() {
           </div>
         </Link>
 
-        {/* Mode badge for superadmin */}
         {isSuperAdmin && (
           <div style={{ marginTop:10, padding:'6px 10px', borderRadius:8, background: inOrgMode ? '#f5f3ff' : '#eff6ff', border:`1px solid ${inOrgMode ? '#ddd6fe' : '#bfdbfe'}`, display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 }}>
             <div>
@@ -201,7 +199,7 @@ export default function Sidebar() {
                 {inOrgMode ? '🏢 Org Mode' : '🔧 Platform Mode'}
               </div>
               <div style={{ fontSize:11, color:'#64748b', marginTop:1 }}>
-                {inOrgMode ? (orgName) : 'Superadmin view'}
+                {inOrgMode ? orgName : 'Superadmin view'}
               </div>
             </div>
             <button
@@ -213,7 +211,7 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* Nav — scrollable */}
+      {/* Nav */}
       <nav className="sidebar-nav" style={{ padding:'8px' }}>
 
         {/* SUPERADMIN PLATFORM MODE */}
@@ -229,7 +227,7 @@ export default function Sidebar() {
           </>
         )}
 
-        {/* SUPERADMIN ORG MODE or REGULAR USER */}
+        {/* ORG MODE (admin, cashier, member) */}
         {(!isSuperAdmin || inOrgMode) && (
           <>
             {/* Org switcher chip */}
@@ -242,39 +240,74 @@ export default function Sidebar() {
               <div style={{ flexShrink:0, color:'#94a3b8' }}><Icon d={PATHS.chevron} size={12} /></div>
             </Link>
 
-            {/* Member section */}
-            <SectionLabel label="Member" />
-            <NavItem label="Dashboard"       path="/dashboard"   icon={PATHS.home}     pathname={pathname} onClick={closeDrawer} />
-            <NavItem label="Pay Installment" path="/installment" icon={PATHS.pay}      pathname={pathname} onClick={closeDrawer} />
-            <NavItem label="My Ledger"       path="/ledger"      icon={PATHS.ledger}   pathname={pathname} onClick={closeDrawer} />
-            <NavItem label="Expenses"        path="/expenses"    icon={PATHS.expenses} pathname={pathname} onClick={closeDrawer} />
-            <NavItem label="Projects"        path="/investments" icon={PATHS.invest}   pathname={pathname} onClick={closeDrawer} />
-            <NavItem label="My Profile"      path="/profile"     icon={PATHS.profile}  pathname={pathname} onClick={closeDrawer} />
-            {orgFeatures.fileLibrary && <NavItem label="File Library" path="/files"       icon={PATHS.folder}   pathname={pathname} onClick={closeDrawer} />}
+            {/* ── CASHIER-ONLY section ── */}
+            {isCashier && !isOrgAdmin && (
+              <>
+                <SectionLabel label="Cashier" />
+                <NavItem label="Verify Payments"  path="/admin"              icon={PATHS.verify}   pathname={pathname} onClick={closeDrawer} />
+                <NavItem label="Fund Transfers"   path="/cashier/transfer"   icon={PATHS.transfer} pathname={pathname} onClick={closeDrawer} />
+                <SectionLabel label="Member" />
+                <NavItem label="Dashboard"        path="/dashboard"          icon={PATHS.home}     pathname={pathname} onClick={closeDrawer} />
+                <NavItem label="Pay Installment"  path="/installment"        icon={PATHS.pay}      pathname={pathname} onClick={closeDrawer} />
+                <NavItem label="My Ledger"        path="/ledger"             icon={PATHS.ledger}   pathname={pathname} onClick={closeDrawer} />
+                <NavItem label="My Profile"       path="/profile"            icon={PATHS.profile}  pathname={pathname} onClick={closeDrawer} />
+                {orgFeatures.memberListVisible && (
+                  <NavItem label="Member Directory" path="/members"          icon={PATHS.directory} pathname={pathname} onClick={closeDrawer} />
+                )}
+              </>
+            )}
 
+            {/* ── REGULAR MEMBER section (non-cashier, non-admin) ── */}
+            {!isCashier && !isOrgAdmin && (
+              <>
+                <SectionLabel label="Member" />
+                <NavItem label="Dashboard"        path="/dashboard"   icon={PATHS.home}     pathname={pathname} onClick={closeDrawer} />
+                <NavItem label="Pay Installment"  path="/installment" icon={PATHS.pay}      pathname={pathname} onClick={closeDrawer} />
+                <NavItem label="My Ledger"        path="/ledger"      icon={PATHS.ledger}   pathname={pathname} onClick={closeDrawer} />
+                <NavItem label="Expenses"         path="/expenses"    icon={PATHS.expenses} pathname={pathname} onClick={closeDrawer} />
+                <NavItem label="Projects"         path="/investments" icon={PATHS.invest}   pathname={pathname} onClick={closeDrawer} />
+                <NavItem label="My Profile"       path="/profile"     icon={PATHS.profile}  pathname={pathname} onClick={closeDrawer} />
+                {orgFeatures.fileLibrary      && <NavItem label="File Library"     path="/files"   icon={PATHS.folder}    pathname={pathname} onClick={closeDrawer} />}
+                {orgFeatures.memberListVisible && <NavItem label="Member Directory" path="/members" icon={PATHS.directory} pathname={pathname} onClick={closeDrawer} />}
+              </>
+            )}
+
+            {/* ── ADMIN section ── */}
             {isOrgAdmin && (
               <>
-                {/* Finance section */}
+                {/* Member nav for admin too */}
+                <SectionLabel label="Member" />
+                <NavItem label="Dashboard"       path="/dashboard"   icon={PATHS.home}     pathname={pathname} onClick={closeDrawer} />
+                <NavItem label="Pay Installment" path="/installment" icon={PATHS.pay}      pathname={pathname} onClick={closeDrawer} />
+                <NavItem label="My Ledger"       path="/ledger"      icon={PATHS.ledger}   pathname={pathname} onClick={closeDrawer} />
+                <NavItem label="My Profile"      path="/profile"     icon={PATHS.profile}  pathname={pathname} onClick={closeDrawer} />
+                {orgFeatures.fileLibrary       && <NavItem label="File Library"     path="/files"   icon={PATHS.folder}    pathname={pathname} onClick={closeDrawer} />}
+                {orgFeatures.memberListVisible  && <NavItem label="Member Directory" path="/members" icon={PATHS.directory} pathname={pathname} onClick={closeDrawer} />}
+
+                {/* Finance */}
                 <SectionLabel label="Finance" />
                 <NavItem label="Verify Payments"  path="/admin"                icon={PATHS.verify}        pathname={pathname} onClick={closeDrawer} />
                 <NavItem label="Income"           path="/admin/income"         icon={PATHS.income}        pathname={pathname} onClick={closeDrawer} />
                 <NavItem label="Expenses"         path="/admin/expenses"       icon={PATHS.expenses}      pathname={pathname} onClick={closeDrawer} />
                 <NavItem label="Penalties"        path="/admin/penalties"      icon={PATHS.penalty}       pathname={pathname} onClick={closeDrawer} />
                 <NavItem label="Investments"      path="/admin/investments"    icon={PATHS.invest}        pathname={pathname} onClick={closeDrawer} />
+                {orgFeatures.cashierRole && (
+                  <NavItem label="Fund Transfers" path="/cashier/transfer"     icon={PATHS.transfer}      pathname={pathname} onClick={closeDrawer} />
+                )}
 
-                {/* Reports section */}
+                {/* Reports */}
                 <SectionLabel label="Reports" />
                 <NavItem label="Summary"          path="/admin/summary"        icon={PATHS.summary}       pathname={pathname} onClick={closeDrawer} />
                 <NavItem label="Monthly Ledger"   path="/admin/monthly-ledger" icon={PATHS.monthlyLedger} pathname={pathname} onClick={closeDrawer} />
                 <NavItem label="Member Ledger"    path="/admin/ledger"         icon={PATHS.ledger}        pathname={pathname} onClick={closeDrawer} />
 
-                {/* People section */}
+                {/* People */}
                 <SectionLabel label="People" />
                 <NavItem label="Member List"      path="/admin/members"        icon={PATHS.members}       pathname={pathname} onClick={closeDrawer} />
                 <NavItem label="Subscriptions"    path="/admin/subscriptions"  icon={PATHS.subscription}  pathname={pathname} onClick={closeDrawer} />
                 <NavItem label="Notifications"    path="/admin/notifications"  icon={PATHS.bell}          pathname={pathname} onClick={closeDrawer} />
 
-                {/* Features section — only if any enabled */}
+                {/* Features */}
                 {(orgFeatures.profitDistribution || orgFeatures.advancedReports || orgFeatures.charityTracking || orgFeatures.investmentPortfolio || orgFeatures.fileLibrary) && (
                   <SectionLabel label="Features" />
                 )}
@@ -282,9 +315,9 @@ export default function Sidebar() {
                 {orgFeatures.advancedReports      && <NavItem label="Reports"      path="/admin/reports"      icon={PATHS.reports}      pathname={pathname} onClick={closeDrawer} />}
                 {orgFeatures.charityTracking      && <NavItem label="Charity"      path="/admin/charity"      icon={PATHS.charity}      pathname={pathname} onClick={closeDrawer} />}
                 {orgFeatures.investmentPortfolio  && <NavItem label="Portfolio"    path="/admin/portfolio"    icon={PATHS.portfolio}    pathname={pathname} onClick={closeDrawer} />}
-                {orgFeatures.fileLibrary        && <NavItem label="File Library" path="/admin/files"      icon={PATHS.folder}      pathname={pathname} onClick={closeDrawer} />}
+                {orgFeatures.fileLibrary          && <NavItem label="File Library" path="/admin/files"        icon={PATHS.folder}       pathname={pathname} onClick={closeDrawer} />}
 
-                {/* Config section */}
+                {/* Config */}
                 <SectionLabel label="Config" />
                 <NavItem label="Settings"         path="/admin/settings"       icon={PATHS.settings}      pathname={pathname} onClick={closeDrawer} />
               </>
@@ -293,7 +326,7 @@ export default function Sidebar() {
         )}
       </nav>
 
-      {/* Notifications bell — shown in org context */}
+      {/* Notifications bell */}
       {(!isSuperAdmin || inOrgMode) && (
         <div style={{ padding:'0 8px', borderTop:'1px solid #e2e8f0' }}>
           <button onClick={toggleNotif}
@@ -308,7 +341,7 @@ export default function Sidebar() {
         </div>
       )}
 
-      {/* User footer — never scrolls */}
+      {/* User footer */}
       <div className="sidebar-footer" style={{ padding:'12px 8px', display:'flex', flexDirection:'column', gap:2 }}>
         <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:8 }}>
           <div style={{ width:32, height:32, borderRadius:'50%', background:'#dbeafe', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden' }}>
@@ -319,7 +352,7 @@ export default function Sidebar() {
           <div style={{ minWidth:0, flex:1 }}>
             <div style={{ fontSize:13, fontWeight:600, color:'#0f172a', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{userData?.nameEnglish?.split(' ')[0] || 'User'}</div>
             <div style={{ fontSize:11, color:'#94a3b8', textTransform:'capitalize' }}>
-              {inOrgMode ? 'superadmin (org)' : (isSuperAdmin ? 'superadmin' : (membership?.role || 'member'))}
+              {inOrgMode ? 'superadmin (org)' : (isSuperAdmin ? 'superadmin' : (isCashier ? '💳 cashier' : (membership?.role || 'member')))}
             </div>
           </div>
         </div>
@@ -335,12 +368,12 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Desktop sidebar — shown/hidden by globals.css .md-sidebar rules */}
+      {/* Desktop sidebar */}
       <aside style={{ position:'fixed', left:0, top:0, height:'100vh', width:240, borderRight:'1px solid #e2e8f0', background:'#ffffff', zIndex:50 }} className="md-sidebar">
         {sidebarContent}
       </aside>
 
-      {/* Mobile topbar — shown/hidden by globals.css .mobile-bar rules */}
+      {/* Mobile topbar */}
       <div style={{ position:'fixed', top:0, left:0, right:0, height:56, background:'#ffffff', borderBottom:'1px solid #e2e8f0', alignItems:'center', justifyContent:'space-between', padding:'0 16px', zIndex:60 }} className="mobile-bar">
         <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0 }}>
           <div style={{ width:30, height:30, borderRadius:8, background: inOrgMode ? '#7c3aed' : '#2563eb', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden' }}>
@@ -395,7 +428,7 @@ export default function Sidebar() {
                   <button onClick={() => delNotif(n.id)} style={{ position:'absolute', top:8, right:10, background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:14 }}>✕</button>
                   {!n.read && <span style={{ display:'inline-block', width:6, height:6, borderRadius:'50%', background:'#2563eb', marginBottom:4 }} />}
                   <p style={{ fontSize:13, color:'#0f172a', marginBottom:4, paddingRight:20 }}>{n.message}</p>
-                  <p style={{ fontSize:11, color:'#94a3b8' }}>{n.createdAt?.seconds ? new Date(n.createdAt.seconds * 1000).toLocaleString() : ''}</p>
+                  <p style={{ fontSize:11, color:'#94a3b8' }}>{n.createdAt?.seconds ? new Date(n.createdAt.seconds*1000).toLocaleString() : ''}</p>
                 </div>
               ))
             }

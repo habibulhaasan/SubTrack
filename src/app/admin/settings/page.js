@@ -4,9 +4,8 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc, onSnapshot, updateDoc, collection, addDoc, setDoc, getDocs, deleteDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
 
-const PAYMENT_METHODS = ['bKash','Nagad','Rocket','Bank Transfer','Cash'];
+const BASE_METHODS = ['bKash','Nagad','Rocket','Bank Transfer','Cash'];
 
-// Toggle defined OUTSIDE the page component — prevents input deselect bug
 function Toggle({ label, sub, value, onChange }) {
   return (
     <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', padding:'12px 0', borderBottom:'1px solid #f1f5f9', gap:12 }}>
@@ -22,17 +21,26 @@ function Toggle({ label, sub, value, onChange }) {
   );
 }
 
+function genId() { return Math.random().toString(36).slice(2, 9); }
+
 export default function AdminSettings() {
   const { user, userData, orgData } = useAuth();
-  const [tab, setTab]         = useState('rules');
+  const [tab, setTab]           = useState('rules');
   const [settings, setSettings] = useState({});
-  const [saving, setSaving]   = useState(false);
-  const [saved, setSaved]     = useState(false);
-  const [members, setMembers] = useState([]);
-  const [invites, setInvites] = useState([]);
+  const [saving, setSaving]     = useState(false);
+  const [saved, setSaved]       = useState(false);
+  const [members, setMembers]   = useState([]);
+  const [invites, setInvites]   = useState([]);
   const [inviteDays, setInviteDays] = useState(7);
 
-  // Special subscription form state
+  // Multi-account state: { bKash: [{id, label, number}], ... }
+  const [paymentAccounts, setPaymentAccounts] = useState({});
+  const [addingAccount, setAddingAccount]     = useState(null); // method name
+  const [newAccLabel, setNewAccLabel]         = useState('');
+  const [newAccNumber, setNewAccNumber]       = useState('');
+  const [savingAccounts, setSavingAccounts]   = useState(false);
+
+  // Special subscription state
   const [specialSubs, setSpecialSubs]   = useState([]);
   const [subForm, setSubForm]           = useState({ title:'', description:'', amount:'', deadline:'', targetAll: true });
   const [subSaving, setSubSaving]       = useState(false);
@@ -43,9 +51,23 @@ export default function AdminSettings() {
   useEffect(() => {
     if (!orgId) return;
     const unsub = onSnapshot(doc(db, 'organizations', orgId), snap => {
-      if (snap.exists()) setSettings(snap.data().settings || {});
+      if (snap.exists()) {
+        const d = snap.data();
+        setSettings(d.settings || {});
+        // Load multi-account data; migrate from old accountDetails if needed
+        const pa = d.settings?.paymentAccounts || {};
+        // Migrate old single-account format
+        const methods = d.settings?.paymentMethods || BASE_METHODS;
+        const migrated = { ...pa };
+        methods.forEach(m => {
+          if (!migrated[m] && d.settings?.accountDetails?.[m]) {
+            migrated[m] = [{ id: genId(), label: 'Default', number: d.settings.accountDetails[m] }];
+          }
+          if (!migrated[m]) migrated[m] = [];
+        });
+        setPaymentAccounts(migrated);
+      }
     });
-    // Load members merged with user profiles
     getDocs(collection(db, 'organizations', orgId, 'members')).then(async snap => {
       const memberDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const withNames = await Promise.all(memberDocs.map(async m => {
@@ -58,7 +80,6 @@ export default function AdminSettings() {
     });
     getDocs(query(collection(db, 'invites'), where('orgId', '==', orgId)))
       .then(snap => setInvites(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    // Load special subscriptions
     const unsubSubs = onSnapshot(
       collection(db, 'organizations', orgId, 'specialSubscriptions'),
       snap => setSpecialSubs(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0)))
@@ -114,11 +135,36 @@ export default function AdminSettings() {
   };
 
   const toggleMethod = (method) => {
-    const current = settings.paymentMethods || PAYMENT_METHODS;
+    const current = settings.paymentMethods || BASE_METHODS;
     const updated  = current.includes(method)
       ? current.filter(m => m !== method)
       : [...current, method];
     set('paymentMethods', updated);
+  };
+
+  // Account management
+  const saveAccounts = async () => {
+    setSavingAccounts(true);
+    try {
+      await updateDoc(doc(db, 'organizations', orgId), {
+        'settings.paymentAccounts': paymentAccounts,
+      });
+      setSaved(true); setTimeout(() => setSaved(false), 2000);
+    } catch (e) { alert(e.message); }
+    setSavingAccounts(false);
+  };
+
+  const addAccount = (method) => {
+    if (!newAccNumber.trim()) { alert('Account number is required.'); return; }
+    const acc = { id: genId(), label: newAccLabel.trim() || 'Account', number: newAccNumber.trim() };
+    setPaymentAccounts(prev => ({ ...prev, [method]: [...(prev[method]||[]), acc] }));
+    setAddingAccount(null);
+    setNewAccLabel(''); setNewAccNumber('');
+  };
+
+  const removeAccount = (method, id) => {
+    if (!confirm('Remove this account?')) return;
+    setPaymentAccounts(prev => ({ ...prev, [method]: prev[method].filter(a => a.id !== id) }));
   };
 
   const createInvite = async () => {
@@ -130,15 +176,11 @@ export default function AdminSettings() {
       const suffix  = Math.random().toString(36).slice(2, 7);
       const inviteId = `${slug}-${suffix}`;
       const inviteData = {
-        orgId,
-        orgName:        orgData.name,
-        orgType:        orgData.type,
+        orgId, orgName: orgData.name, orgType: orgData.type,
         orgDescription: orgData.description || '',
-        orgSettings:    { baseAmount: orgData.settings?.baseAmount, dueDate: orgData.settings?.dueDate },
-        expiresAt:      { seconds: Math.floor(exp.getTime() / 1000) },
-        createdAt:      serverTimestamp(),
-        createdBy:      user.uid,
-        useCount:       0,
+        orgSettings: { baseAmount: orgData.settings?.baseAmount, dueDate: orgData.settings?.dueDate },
+        expiresAt: { seconds: Math.floor(exp.getTime() / 1000) },
+        createdAt: serverTimestamp(), createdBy: user.uid, useCount: 0,
       };
       await setDoc(doc(db, 'invites', inviteId), inviteData);
       setInvites(p => [...p, { id: inviteId, ...inviteData }]);
@@ -152,26 +194,20 @@ export default function AdminSettings() {
     } catch (e) { alert(e.message); }
   };
 
-  // Special subscription: create and notify all members
   const createSpecialSub = async (e) => {
     e.preventDefault();
     if (!subForm.title || !subForm.amount || !subForm.deadline) { alert('Title, amount, and deadline are required.'); return; }
     setSubSaving(true);
     try {
-      const docRef = await addDoc(collection(db, 'organizations', orgId, 'specialSubscriptions'), {
-        title:       subForm.title,
-        description: subForm.description,
-        amount:      Number(subForm.amount),
-        deadline:    subForm.deadline,
-        active:      true,
-        createdAt:   serverTimestamp(),
-        createdBy:   user.uid,
+      await addDoc(collection(db, 'organizations', orgId, 'specialSubscriptions'), {
+        title: subForm.title, description: subForm.description,
+        amount: Number(subForm.amount), deadline: subForm.deadline,
+        active: true, createdAt: serverTimestamp(), createdBy: user.uid,
       });
-      // Notify all approved members
       const mSnap = await getDocs(collection(db, 'organizations', orgId, 'members'));
       const approved = mSnap.docs.filter(d => d.data().approved);
       const deadline = new Date(subForm.deadline).toLocaleDateString('en-GB');
-      const msg = `📢 Special subscription: "${subForm.title}" — ৳${Number(subForm.amount).toLocaleString()} due by ${deadline}. ${subForm.description ? subForm.description : ''}`;
+      const msg = `📢 Special subscription: "${subForm.title}" — ৳${Number(subForm.amount).toLocaleString()} due by ${deadline}. ${subForm.description||''}`;
       await Promise.all(approved.map(d =>
         addDoc(collection(db, 'organizations', orgId, 'notifications'), {
           userId: d.id, message: msg.trim(), read: false, createdAt: serverTimestamp(),
@@ -184,9 +220,8 @@ export default function AdminSettings() {
   };
 
   const toggleSpecialSub = async (sub) => {
-    try {
-      await updateDoc(doc(db, 'organizations', orgId, 'specialSubscriptions', sub.id), { active: !sub.active });
-    } catch (e) { alert(e.message); }
+    try { await updateDoc(doc(db, 'organizations', orgId, 'specialSubscriptions', sub.id), { active: !sub.active }); }
+    catch (e) { alert(e.message); }
   };
 
   const deleteSpecialSub = async (id) => {
@@ -195,7 +230,8 @@ export default function AdminSettings() {
     catch (e) { alert(e.message); }
   };
 
-  const TABS = [['rules','Rules'],['payments','Payment Methods'],['subscriptions','Subscriptions'],['special','Special Subs'],['invites','Invite Links']];
+  const enabledMethods = settings.paymentMethods || BASE_METHODS;
+  const TABS = [['rules','Rules'],['payments','Payment Accounts'],['subscriptions','Subscriptions'],['special','Special Subs'],['invites','Invite Links']];
 
   return (
     <div className="page-wrap animate-fade">
@@ -209,8 +245,7 @@ export default function AdminSettings() {
           <button key={id} onClick={() => setTab(id)}
             style={{ padding:'10px 18px', background:'none', border:'none', whiteSpace:'nowrap',
               borderBottom: tab===id ? '2px solid #2563eb' : '2px solid transparent',
-              fontWeight: tab===id ? 600 : 400,
-              color: tab===id ? '#2563eb' : '#64748b',
+              fontWeight: tab===id ? 600 : 400, color: tab===id ? '#2563eb' : '#64748b',
               cursor:'pointer', fontSize:14, marginBottom:-2 }}>
             {label}
           </button>
@@ -221,8 +256,6 @@ export default function AdminSettings() {
       {tab === 'rules' && (
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
           {saved && <div className="alert alert-success">Settings saved.</div>}
-
-          {/* Logo section */}
           <div className="card">
             <div style={{ fontWeight:600, fontSize:14, color:'#0f172a', marginBottom:12 }}>Organization Logo</div>
             <div style={{ display:'flex', alignItems:'center', gap:16 }}>
@@ -237,9 +270,7 @@ export default function AdminSettings() {
                   <input type="file" accept="image/*" onChange={handleLogo} style={{ display:'none' }} />
                 </label>
                 {logoPreview && (
-                  <button onClick={saveLogo} className="btn-primary" style={{ padding:'8px 16px', fontSize:13, marginLeft:8 }}>
-                    Save Logo
-                  </button>
+                  <button onClick={saveLogo} className="btn-primary" style={{ padding:'8px 16px', fontSize:13, marginLeft:8 }}>Save Logo</button>
                 )}
                 <p style={{ fontSize:11, color:'#94a3b8', margin:0 }}>Square image recommended</p>
               </div>
@@ -272,56 +303,101 @@ export default function AdminSettings() {
         </div>
       )}
 
-      {/* ── Payment Methods ── */}
+      {/* ── Payment Accounts ── */}
       {tab === 'payments' && (
         <div style={{ display:'grid', gap:16 }}>
+          {saved && <div className="alert alert-success">Saved.</div>}
           <div className="card">
-            <div style={{ fontWeight:600, fontSize:14, color:'#0f172a', marginBottom:4 }}>Accepted Payment Methods</div>
-            <p style={{ fontSize:13, color:'#64748b', marginBottom:16 }}>Enable methods, set account details, and configure gateway fees.</p>
-            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-              {PAYMENT_METHODS.map(m => {
-                const enabled    = (settings.paymentMethods || PAYMENT_METHODS).includes(m);
-                const account    = settings.accountDetails?.[m] || '';
+            <div style={{ fontWeight:600, fontSize:14, color:'#0f172a', marginBottom:4 }}>Payment Methods & Accounts</div>
+            <p style={{ fontSize:13, color:'#64748b', marginBottom:16 }}>
+              Enable methods, add multiple accounts per method (e.g. two bKash numbers), and configure gateway fees.
+            </p>
+
+            <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+              {BASE_METHODS.map(m => {
+                const enabled    = enabledMethods.includes(m);
+                const accounts   = paymentAccounts[m] || [];
                 const feeEnabled = settings.gatewayFees?.[m]?.enabled ?? false;
                 const feeRate    = settings.gatewayFees?.[m]?.rate ?? '';
-                const setAccount = v => set('accountDetails', { ...(settings.accountDetails||{}), [m]: v });
                 const setFee     = (field, val) => set('gatewayFees', {
                   ...(settings.gatewayFees||{}),
                   [m]: { ...(settings.gatewayFees?.[m]||{}), [field]: val }
                 });
+
                 return (
                   <div key={m} style={{ border:`1.5px solid ${enabled?'#bfdbfe':'#e2e8f0'}`, borderRadius:10, overflow:'hidden', background: enabled?'#f8faff':'#fafafa' }}>
+                    {/* Method header */}
                     <label style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', cursor:'pointer', borderBottom: enabled?'1px solid #e2e8f0':'none' }}>
-                      <input type="checkbox" checked={enabled} onChange={() => toggleMethod(m)} style={{ width:16, height:16, accentColor:'#2563eb', flexShrink:0 }} />
+                      <input type="checkbox" checked={enabled} onChange={() => { toggleMethod(m); setSettings(p => p); }} style={{ width:16, height:16, accentColor:'#2563eb', flexShrink:0 }} />
                       <span style={{ fontWeight:600, fontSize:14, color: enabled?'#1d4ed8':'#475569', flex:1 }}>{m}</span>
-                      {enabled && <span className="badge badge-green">Active</span>}
+                      {enabled && <span className="badge badge-green" style={{ fontSize:10 }}>{accounts.length} account{accounts.length !== 1 ? 's' : ''}</span>}
                     </label>
+
                     {enabled && (
                       <div style={{ padding:'14px 16px', display:'grid', gap:12 }}>
+                        {/* Accounts list */}
                         {m !== 'Cash' && (
                           <div>
-                            <label className="form-label">Account / Number to show members</label>
-                            <input value={account} onChange={e=>setAccount(e.target.value)}
-                              placeholder={m==='Bank Transfer'?'Bank name, account no, routing…':`${m} number`} />
+                            <div style={{ fontSize:12, fontWeight:700, color:'#64748b', marginBottom:8, textTransform:'uppercase', letterSpacing:'0.05em' }}>Accounts</div>
+                            {accounts.length === 0 && (
+                              <div style={{ fontSize:12, color:'#94a3b8', padding:'8px 0' }}>No accounts added yet. Add one below.</div>
+                            )}
+                            {accounts.map(acc => (
+                              <div key={acc.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', background:'#fff', border:'1px solid #e2e8f0', borderRadius:8, marginBottom:6 }}>
+                                <div style={{ flex:1 }}>
+                                  <div style={{ fontSize:13, fontWeight:600, color:'#0f172a' }}>{acc.label}</div>
+                                  <div style={{ fontSize:12, color:'#475569', fontFamily:'monospace' }}>{acc.number}</div>
+                                </div>
+                                <button onClick={() => removeAccount(m, acc.id)}
+                                  style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:16, padding:'2px 6px' }}>×</button>
+                              </div>
+                            ))}
+
+                            {/* Add account form */}
+                            {addingAccount === m ? (
+                              <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:8, padding:'12px', marginTop:6 }}>
+                                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
+                                  <div>
+                                    <label className="form-label">Label</label>
+                                    <input value={newAccLabel} onChange={e => setNewAccLabel(e.target.value)} placeholder="e.g. Main Account" />
+                                  </div>
+                                  <div>
+                                    <label className="form-label">Account Number *</label>
+                                    <input value={newAccNumber} onChange={e => setNewAccNumber(e.target.value)}
+                                      placeholder={m === 'Bank Transfer' ? 'Bank, account no, routing…' : `${m} number`} />
+                                  </div>
+                                </div>
+                                <div style={{ display:'flex', gap:8 }}>
+                                  <button onClick={() => addAccount(m)} className="btn-primary" style={{ padding:'8px 16px', fontSize:13 }}>Add</button>
+                                  <button onClick={() => { setAddingAccount(null); setNewAccLabel(''); setNewAccNumber(''); }} className="btn-ghost" style={{ padding:'8px 14px', fontSize:13 }}>Cancel</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button onClick={() => { setAddingAccount(m); setNewAccLabel(''); setNewAccNumber(''); }}
+                                style={{ fontSize:12, color:'#2563eb', background:'none', border:'1px dashed #bfdbfe', borderRadius:7, padding:'6px 14px', cursor:'pointer', marginTop:4, fontWeight:600 }}>
+                                + Add Account
+                              </button>
+                            )}
                           </div>
                         )}
+
+                        {/* Gateway Fee */}
                         {m !== 'Cash' && (
                           <div style={{ background:'#f8fafc', borderRadius:8, padding:'12px 14px', border:'1px solid #e2e8f0' }}>
-                            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: feeEnabled?12:0 }}>
+                            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: feeEnabled ? 12 : 0 }}>
                               <div>
                                 <div style={{ fontSize:13, fontWeight:600, color:'#0f172a' }}>Gateway Fee</div>
                                 <div style={{ fontSize:11, color:'#94a3b8', marginTop:1 }}>Automatically add fee to member payments</div>
                               </div>
-                              <button type="button" onClick={()=>setFee('enabled',!feeEnabled)}
-                                style={{ width:40, height:22, borderRadius:99, border:'none', cursor:'pointer', background:feeEnabled?'#2563eb':'#e2e8f0', position:'relative', flexShrink:0 }}>
-                                <span style={{ position:'absolute', top:2, left:feeEnabled?18:2, width:18, height:18, borderRadius:'50%', background:'#fff', boxShadow:'0 1px 2px rgba(0,0,0,0.15)', transition:'left 0.18s' }} />
+                              <button type="button" onClick={() => setFee('enabled', !feeEnabled)}
+                                style={{ width:40, height:22, borderRadius:99, border:'none', cursor:'pointer', background: feeEnabled ? '#2563eb' : '#e2e8f0', position:'relative', flexShrink:0 }}>
+                                <span style={{ position:'absolute', top:2, left: feeEnabled ? 18 : 2, width:18, height:18, borderRadius:'50%', background:'#fff', boxShadow:'0 1px 2px rgba(0,0,0,0.15)', transition:'left 0.18s' }} />
                               </button>
                             </div>
                             {feeEnabled && (
                               <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                                 <input type="number" min="0" max="100" step="0.01" value={feeRate}
-                                  onChange={e=>setFee('rate', e.target.value)}
-                                  placeholder="e.g. 1.85" style={{ flex:1 }} />
+                                  onChange={e => setFee('rate', e.target.value)} placeholder="e.g. 1.85" style={{ flex:1 }} />
                                 <span style={{ fontSize:13, color:'#64748b', whiteSpace:'nowrap' }}>% of total</span>
                               </div>
                             )}
@@ -333,14 +409,20 @@ export default function AdminSettings() {
                 );
               })}
             </div>
-            <button onClick={saveRules} disabled={saving} className="btn-primary" style={{ marginTop:20, padding:'10px 28px' }}>
-              {saving ? 'Saving…' : 'Save Payment Settings'}
-            </button>
+
+            <div style={{ display:'flex', gap:10, marginTop:20, flexWrap:'wrap' }}>
+              <button onClick={async () => { setSaving(true); await saveRules(); setSaving(false); }} disabled={saving} className="btn-primary" style={{ padding:'10px 28px' }}>
+                {saving ? 'Saving…' : 'Save Methods & Fees'}
+              </button>
+              <button onClick={saveAccounts} disabled={savingAccounts} className="btn-ghost" style={{ padding:'10px 24px' }}>
+                {savingAccounts ? 'Saving…' : 'Save Accounts'}
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* ── Subscriptions (custom amounts per member) ── */}
+      {/* ── Subscriptions ── */}
       {tab === 'subscriptions' && (
         <div className="card">
           <div className="alert alert-info" style={{ fontSize:13, marginBottom:16 }}>
@@ -356,13 +438,10 @@ export default function AdminSettings() {
                   <div style={{ fontSize:11, color:'#94a3b8' }}>{m.idNo || 'No ID'}</div>
                 </div>
                 <div style={{ fontSize:12, color:'#64748b' }}>Custom amount:</div>
-                <input
-                  type="number"
-                  disabled={!!settings.uniformAmount}
+                <input type="number" disabled={!!settings.uniformAmount}
                   defaultValue={m.customAmount ?? settings.baseAmount ?? 0}
                   onBlur={e => !settings.uniformAmount && saveMemberAmount(m.id, e.target.value)}
-                  style={{ width:110, textAlign:'right', opacity: settings.uniformAmount ? 0.5 : 1 }}
-                />
+                  style={{ width:110, textAlign:'right', opacity: settings.uniformAmount ? 0.5 : 1 }} />
               </div>
             ))}
             {members.filter(m => m.approved).length === 0 && (
@@ -376,11 +455,9 @@ export default function AdminSettings() {
       {tab === 'special' && (
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
           {subSaved && <div className="alert alert-success">Special subscription created and members notified!</div>}
-
-          {/* Create form */}
           <div className="card">
             <div style={{ fontWeight:600, fontSize:14, color:'#0f172a', marginBottom:4 }}>Create Special Subscription</div>
-            <p style={{ fontSize:13, color:'#64748b', marginBottom:16 }}>For one-time fundraising goals with a deadline. Members will be notified and can pay via the installment page.</p>
+            <p style={{ fontSize:13, color:'#64748b', marginBottom:16 }}>For one-time fundraising goals with a deadline.</p>
             <form onSubmit={createSpecialSub}>
               <div className="form-group">
                 <label className="form-label">Title / Purpose *</label>
@@ -406,7 +483,6 @@ export default function AdminSettings() {
             </form>
           </div>
 
-          {/* Existing special subscriptions */}
           {specialSubs.length > 0 && (
             <div className="card">
               <div style={{ fontWeight:600, fontSize:14, color:'#0f172a', marginBottom:12 }}>Active Special Subscriptions</div>
@@ -428,9 +504,7 @@ export default function AdminSettings() {
                         </div>
                         <div style={{ display:'flex', gap:6, flexShrink:0 }}>
                           <button onClick={() => toggleSpecialSub(sub)}
-                            style={{ padding:'5px 12px', fontSize:12, fontWeight:600, border:'none', borderRadius:6, cursor:'pointer',
-                              background: sub.active ? '#fffbeb' : '#dcfce7',
-                              color: sub.active ? '#b45309' : '#15803d' }}>
+                            style={{ padding:'5px 12px', fontSize:12, fontWeight:600, border:'none', borderRadius:6, cursor:'pointer', background: sub.active ? '#fffbeb' : '#dcfce7', color: sub.active ? '#b45309' : '#15803d' }}>
                             {sub.active ? 'Deactivate' : 'Activate'}
                           </button>
                           <button onClick={() => deleteSpecialSub(sub.id)}
@@ -460,12 +534,9 @@ export default function AdminSettings() {
                   {[1,3,7,14,30].map(d => <option key={d} value={d}>{d} day{d>1?'s':''}</option>)}
                 </select>
               </div>
-              <button onClick={createInvite} className="btn-primary" style={{ padding:'10px 20px', whiteSpace:'nowrap' }}>
-                Generate Link
-              </button>
+              <button onClick={createInvite} className="btn-primary" style={{ padding:'10px 20px', whiteSpace:'nowrap' }}>Generate Link</button>
             </div>
           </div>
-
           {invites.length === 0 ? (
             <div style={{ textAlign:'center', color:'#94a3b8', padding:24, fontSize:13 }}>No invite links yet</div>
           ) : invites.map(inv => {

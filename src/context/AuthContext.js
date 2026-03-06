@@ -15,10 +15,6 @@ const PUBLIC = [
   '/superadmin',
 ];
 
-// accessMode stored in localStorage:
-//   'superadmin' → platform view (default for superadmins)
-//   'org'        → acting inside a specific org as admin/member
-
 export const AuthProvider = ({ children }) => {
   const [user, setUser]               = useState(null);
   const [userData, setUserData]       = useState(null);
@@ -40,17 +36,14 @@ export const AuthProvider = ({ children }) => {
     if (typeof window !== 'undefined') localStorage.setItem('dt_access_mode', mode);
   };
 
-  // Called from Sidebar or anywhere — superadmin enters an org
   const switchToOrgMode = async (orgId) => {
     if (orgId && user) {
-      // Update activeOrgId so the effect loads the right org
       await setDoc(doc(db, 'users', user.uid), { activeOrgId: orgId }, { merge: true });
     }
     setAccessMode('org');
     router.push('/dashboard');
   };
 
-  // Return to platform view
   const switchToSuperAdminMode = () => {
     setAccessMode('superadmin');
     router.push('/superadmin');
@@ -84,7 +77,6 @@ export const AuthProvider = ({ children }) => {
 
         const isSA = uData.role === 'superadmin';
 
-        // Superadmin in platform mode — skip org loading entirely
         if (isSA && accessMode === 'superadmin') {
           setOrgData(null);
           setMembership(null);
@@ -92,7 +84,6 @@ export const AuthProvider = ({ children }) => {
           return;
         }
 
-        // Regular user OR superadmin in org mode — load org + membership
         if (uData.activeOrgId) {
           if (unsubOrg) { unsubOrg(); unsubOrg = null; }
           if (unsubMem) { unsubMem(); unsubMem = null; }
@@ -101,7 +92,6 @@ export const AuthProvider = ({ children }) => {
             if (orgSnap.exists()) {
               const oData = { id: orgSnap.id, ...orgSnap.data() };
               setOrgData(oData);
-              // Superadmin in org mode can access even pending orgs — no redirect
               if (!isSA && oData.status === 'pending' && !isPublic && pathname !== '/org-pending') {
                 router.push('/org-pending');
               }
@@ -114,12 +104,10 @@ export const AuthProvider = ({ children }) => {
               if (mSnap.exists()) {
                 const mData = { id: mSnap.id, ...mSnap.data() };
                 setMembership(mData);
-                // Superadmin never gets blocked by pending approval
                 if (!isSA && !mData.approved && !isPublic && pathname !== '/pending-approval') {
                   router.push('/pending-approval');
                 }
               } else {
-                // Superadmin may not be a formal member — still OK
                 setMembership(null);
               }
               setLoading(false);
@@ -144,13 +132,12 @@ export const AuthProvider = ({ children }) => {
       if (unsubOrg)  unsubOrg();
       if (unsubMem)  unsubMem();
     };
-  }, [pathname, accessMode]); // re-run when accessMode changes
+  }, [pathname, accessMode]);
 
   const isSuperAdmin = userData?.role === 'superadmin';
-
-  // In org mode superadmin acts as admin for the selected org
-  // (Firestore rules already allow superadmin to do all writes)
-  const isOrgAdmin = membership?.role === 'admin' || (isSuperAdmin && accessMode === 'org');
+  const isOrgAdmin   = membership?.role === 'admin' || (isSuperAdmin && accessMode === 'org');
+  // Cashier: approved member with role === 'cashier', NOT admin
+  const isCashier    = !isOrgAdmin && membership?.role === 'cashier' && !!membership?.approved;
 
   if (loading) return (
     <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:'#f8fafc' }}>
@@ -163,7 +150,7 @@ export const AuthProvider = ({ children }) => {
   return (
     <AuthContext.Provider value={{
       user, userData, orgData, membership, loading,
-      isSuperAdmin, isOrgAdmin,
+      isSuperAdmin, isOrgAdmin, isCashier,
       accessMode,
       switchToOrgMode,
       switchToSuperAdminMode,
