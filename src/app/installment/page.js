@@ -28,6 +28,7 @@ export default function Installment() {
   const [selectedSpecial, setSelectedSpecial] = useState(null);
   const [method,          setMethod]          = useState('');
   const [selectedAccount, setSelectedAccount] = useState(null); // { id, label, number }
+  const [customSpecialAmount, setCustomSpecialAmount] = useState(''); // for allowCustomAmount subs
   const [txId,            setTxId]            = useState('');
   const [loading,         setLoading]         = useState(false);
   const [success,         setSuccess]         = useState(false);
@@ -109,14 +110,22 @@ export default function Installment() {
   const toggle       = m => setSelected(p => p.includes(m) ? p.filter(x => x !== m) : [...p,m]);
 
   const isSpecialMode = payMode === 'special' && selectedSpecial;
-  const totalBase     = isSpecialMode ? (selectedSpecial?.amount || 0) : selected.length * baseAmount;
+  // If special sub allows custom amount, use the user-entered value (fallback to sub's fixed amount)
+  const specialBaseAmount = isSpecialMode
+    ? (selectedSpecial.allowCustomAmount
+        ? (Number(customSpecialAmount) || selectedSpecial.amount || 0)
+        : (selectedSpecial.amount || 0))
+    : 0;
+  const totalBase     = isSpecialMode ? specialBaseAmount : selected.length * baseAmount;
   const totalPenalty  = isSpecialMode ? 0 : selected.filter(m => isLate(m)).length * penalty;
   const feeRate       = getGatewayFee(method);
   const fee           = Math.round((totalBase + totalPenalty) * feeRate);
   const grandTotal    = totalBase + totalPenalty + fee;
 
-  // Accounts for the currently selected method
-  const methodAccounts = method && method !== 'Cash' ? (paymentAccounts[method] || []) : [];
+  // Only show accounts that are enabled (enabled === false means admin disabled it)
+  const methodAccounts = method && method !== 'Cash'
+    ? (paymentAccounts[method] || []).filter(a => a.enabled !== false)
+    : [];
   const needsAccountPick = methodAccounts.length > 1 && !selectedAccount;
 
   const handleSubmit = async e => {
@@ -160,6 +169,7 @@ export default function Installment() {
       setSelected([]);
       setSelectedSpecial(null);
       setSelectedAccount(null);
+      setCustomSpecialAmount('');
       setTxId('');
     } catch (err) { alert('Error: ' + err.message); }
     setLoading(false);
@@ -185,7 +195,8 @@ export default function Installment() {
   const hasAnything = monthlyEnabled || specialSubs.length > 0;
 
   // Build account display for the info card
-  const hasMultiAccounts = enabledMethods.some(m => m !== 'Cash' && (paymentAccounts[m]||[]).length > 0);
+  // Only count methods that have at least one enabled account
+  const hasMultiAccounts = enabledMethods.some(m => m !== 'Cash' && (paymentAccounts[m]||[]).some(a => a.enabled !== false));
   const hasLegacyAccounts = Object.keys(accountDetails).length > 0 && !hasMultiAccounts;
 
   return (
@@ -222,7 +233,8 @@ export default function Installment() {
               <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
                 {hasMultiAccounts ? (
                   enabledMethods.filter(m => m !== 'Cash').map(m => {
-                    const accs = paymentAccounts[m] || [];
+                    // Only show accounts that are enabled
+                    const accs = (paymentAccounts[m] || []).filter(a => a.enabled !== false);
                     if (accs.length === 0) return null;
                     return accs.map(a => (
                       <div key={a.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 12px', background:'#fff', borderRadius:8, border:'1px solid #bbf7d0' }}>
@@ -320,7 +332,7 @@ export default function Installment() {
                     const deadline = new Date(s.deadline);
                     const daysLeft = Math.ceil((deadline - new Date()) / (1000*60*60*24));
                     return (
-                      <button key={s.id} type="button" onClick={() => setSelectedSpecial(sel ? null : s)}
+                      <button key={s.id} type="button" onClick={() => { setSelectedSpecial(sel ? null : s); setCustomSpecialAmount(''); }}
                         style={{ padding:'14px 16px', borderRadius:10, textAlign:'left', cursor:'pointer', transition:'all 0.15s',
                           border:     sel ? '2px solid #2563eb' : '1px solid #e2e8f0',
                           background: sel ? '#eff6ff' : '#fff' }}>
@@ -331,12 +343,38 @@ export default function Installment() {
                             <div style={{ fontSize:11, color: daysLeft <= 3 ? '#dc2626' : '#f59e0b', marginTop:4, fontWeight:500 }}>
                               Due: {s.deadline} ({daysLeft > 0 ? `${daysLeft} day${daysLeft!==1?'s':''} left` : 'Today!'})
                             </div>
+                            {s.allowCustomAmount && (
+                              <div style={{ fontSize:11, color:'#7c3aed', marginTop:3, fontWeight:600 }}>✏️ Pay any amount you choose</div>
+                            )}
                           </div>
                           <div style={{ fontWeight:700, fontSize:16, color: sel?'#1d4ed8':'#2563eb', flexShrink:0 }}>
-                            ৳{s.amount?.toLocaleString()}
+                            {s.allowCustomAmount ? `৳${s.amount?.toLocaleString()}+` : `৳${s.amount?.toLocaleString()}`}
                           </div>
                         </div>
                       </button>
+
+                      {/* Custom amount input — shown when this sub is selected and allows custom amount */}
+                      {sel && s.allowCustomAmount && (
+                        <div style={{ padding:'12px 14px', background:'#faf5ff', border:'1px solid #ddd6fe', borderRadius:8, marginTop:4 }}
+                          onClick={e => e.stopPropagation()}>
+                          <label className="form-label" style={{ color:'#7c3aed', marginBottom:6 }}>
+                            Enter your contribution amount
+                          </label>
+                          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                            <span style={{ fontWeight:700, color:'#7c3aed' }}>৳</span>
+                            <input
+                              type="number" min="1"
+                              value={customSpecialAmount}
+                              onChange={e => setCustomSpecialAmount(e.target.value)}
+                              placeholder={`Suggested: ${s.amount?.toLocaleString()}`}
+                              style={{ flex:1 }}
+                            />
+                          </div>
+                          <div style={{ fontSize:11, color:'#7c3aed', marginTop:6 }}>
+                            Suggested amount: ৳{s.amount?.toLocaleString()}. You can pay more or less.
+                          </div>
+                        </div>
+                      )}
                     );
                   })}
                 </div>
@@ -420,7 +458,10 @@ export default function Installment() {
                   </div>
                 ) : (
                   <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, marginBottom:6 }}>
-                    <span style={{ color:'#64748b' }}>{selectedSpecial?.title}</span>
+                    <span style={{ color:'#64748b' }}>
+                      {selectedSpecial?.title}
+                      {selectedSpecial?.allowCustomAmount && <span style={{ color:'#7c3aed', marginLeft:4 }}>(custom)</span>}
+                    </span>
                     <span style={{ fontWeight:600 }}>৳{totalBase.toLocaleString()}</span>
                   </div>
                 )}
