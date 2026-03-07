@@ -48,7 +48,7 @@ export default function AdminSettings() {
 
   // Special subscriptions
   const [specialSubs, setSpecialSubs] = useState([]);
-  const [subForm, setSubForm] = useState({ title:'', description:'', amount:'', deadline:'' });
+  const [subForm, setSubForm] = useState({ title:'', description:'', amount:'', deadline:'', allowCustomAmount: false });
   const [subSaving, setSubSaving] = useState(false);
   const [subSaved,  setSubSaved]  = useState(false);
 
@@ -153,6 +153,16 @@ export default function AdminSettings() {
     setAccounts(prev => ({ ...prev, [method]: (prev[method] || []).filter(a => a.id !== id) }));
   };
 
+  // Toggle an account's enabled/disabled state (disabled accounts are hidden from members)
+  const toggleAccountEnabled = (method, id) => {
+    setAccounts(prev => ({
+      ...prev,
+      [method]: (prev[method] || []).map(a =>
+        a.id === id ? { ...a, enabled: a.enabled === false ? true : false } : a
+      ),
+    }));
+  };
+
   // ── Single unified save — ALWAYS writes everything together ─────────────
   const saveAll = async () => {
     setSaving(true);
@@ -241,6 +251,7 @@ export default function AdminSettings() {
       await addDoc(collection(db, 'organizations', orgId, 'specialSubscriptions'), {
         title: subForm.title, description: subForm.description,
         amount: Number(subForm.amount), deadline: subForm.deadline,
+        allowCustomAmount: !!subForm.allowCustomAmount,
         active: true, createdAt: serverTimestamp(), createdBy: user.uid,
       });
       const mSnap   = await getDocs(collection(db, 'organizations', orgId, 'members'));
@@ -253,7 +264,7 @@ export default function AdminSettings() {
           })
         )
       );
-      setSubForm({ title:'', description:'', amount:'', deadline:'' });
+      setSubForm({ title:'', description:'', amount:'', deadline:'', allowCustomAmount: false });
       setSubSaved(true); setTimeout(() => setSubSaved(false), 3000);
     } catch (e) { alert(e.message); }
     setSubSaving(false);
@@ -346,6 +357,7 @@ export default function AdminSettings() {
             <Toggle label="Uniform Subscription"       value={!!settings.uniformAmount}           onChange={() => set('uniformAmount', !settings.uniformAmount)}                    sub="All members pay the same base amount" />
             <Toggle label="Show Total Fund to Members"  value={settings.showFund !== false}        onChange={() => set('showFund', settings.showFund === false)}                     sub="Members can see the total collected amount" />
             <Toggle label="Auto-assign Member IDs"      value={!!settings.autoMemberId}            onChange={() => set('autoMemberId', !settings.autoMemberId)}                      sub="Automatically assign sequential IDs when approving members" />
+            <Toggle label="Gateway Fees Count as Income" value={!!settings.gatewayFeeInAccounting}  onChange={() => set('gatewayFeeInAccounting', !settings.gatewayFeeInAccounting)}  sub="When ON, gateway fees collected from members are included in total org balance. When OFF, they are excluded." />
             <button onClick={saveAll} disabled={saving} className="btn-primary" style={{ marginTop:20, padding:'10px 28px' }}>
               {saving ? 'Saving…' : 'Save Settings'}
             </button>
@@ -409,16 +421,33 @@ export default function AdminSettings() {
                             )}
 
                             {/* Existing accounts */}
-                            {accounts.map(acc => (
-                              <div key={acc.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', background:'#fff', border:'1px solid #e2e8f0', borderRadius:8, marginBottom:6 }}>
-                                <div style={{ flex:1 }}>
-                                  <div style={{ fontSize:13, fontWeight:600, color:'#0f172a' }}>{acc.label}</div>
-                                  <div style={{ fontSize:12, color:'#475569', fontFamily:'monospace', marginTop:2 }}>{acc.number}</div>
+                            {accounts.map(acc => {
+                              const isEnabled = acc.enabled !== false;
+                              return (
+                                <div key={acc.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', background: isEnabled ? '#fff' : '#f8fafc', border:`1px solid ${isEnabled ? '#e2e8f0' : '#f1f5f9'}`, borderRadius:8, marginBottom:6, opacity: isEnabled ? 1 : 0.7 }}>
+                                  <div style={{ flex:1 }}>
+                                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                                      <div style={{ fontSize:13, fontWeight:600, color: isEnabled ? '#0f172a' : '#94a3b8', textDecoration: isEnabled ? 'none' : 'line-through' }}>{acc.label}</div>
+                                      <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:99, background: isEnabled ? '#dcfce7' : '#f1f5f9', color: isEnabled ? '#15803d' : '#94a3b8' }}>
+                                        {isEnabled ? 'Active' : 'Disabled'}
+                                      </span>
+                                    </div>
+                                    <div style={{ fontSize:12, color: isEnabled ? '#475569' : '#94a3b8', fontFamily:'monospace', marginTop:2 }}>{acc.number}</div>
+                                  </div>
+                                  {/* Enable / disable toggle */}
+                                  <button
+                                    onClick={() => toggleAccountEnabled(m, acc.id)}
+                                    title={isEnabled ? 'Disable this account' : 'Enable this account'}
+                                    style={{ fontSize:11, fontWeight:600, padding:'4px 10px', borderRadius:6, border:'none', cursor:'pointer', flexShrink:0,
+                                      background: isEnabled ? '#fef3c7' : '#dcfce7',
+                                      color:      isEnabled ? '#b45309' : '#15803d' }}>
+                                    {isEnabled ? 'Disable' : 'Enable'}
+                                  </button>
+                                  <button onClick={() => removeAccount(m, acc.id)}
+                                    style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:18, padding:'0 4px', lineHeight:1 }}>×</button>
                                 </div>
-                                <button onClick={() => removeAccount(m, acc.id)}
-                                  style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:18, padding:'0 6px', lineHeight:1 }}>×</button>
-                              </div>
-                            ))}
+                              );
+                            })}
 
                             {/* Add account inline form */}
                             {addingAccount === m ? (
@@ -553,6 +582,21 @@ export default function AdminSettings() {
                   <input type="date" value={subForm.deadline} onChange={e => setSubForm(p=>({...p, deadline:e.target.value}))} required />
                 </div>
               </div>
+
+              {/* Allow custom amount toggle */}
+              <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', padding:'12px 14px', borderRadius:8, border:'1px solid #e2e8f0', background:'#f8fafc', marginBottom:16, gap:12 }}>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:600, color:'#0f172a' }}>Allow Custom Payment Amount</div>
+                  <div style={{ fontSize:12, color:'#64748b', marginTop:2 }}>
+                    When ON, members can enter any amount instead of the fixed amount above. The amount above becomes a suggested minimum.
+                  </div>
+                </div>
+                <button type="button" onClick={() => setSubForm(p => ({ ...p, allowCustomAmount: !p.allowCustomAmount }))}
+                  style={{ width:44, height:24, borderRadius:99, border:'none', cursor:'pointer', flexShrink:0, marginTop:2,
+                    background: subForm.allowCustomAmount ? '#2563eb' : '#e2e8f0', position:'relative' }}>
+                  <span style={{ position:'absolute', top:2, left: subForm.allowCustomAmount ? 20 : 2, width:20, height:20, borderRadius:'50%', background:'#fff', boxShadow:'0 1px 3px rgba(0,0,0,0.15)', transition:'left 0.2s' }} />
+                </button>
+              </div>
               <button type="submit" disabled={subSaving} className="btn-primary" style={{ padding:'10px 28px' }}>
                 {subSaving ? 'Creating…' : 'Create & Notify Members'}
               </button>
@@ -573,6 +617,7 @@ export default function AdminSettings() {
                           {sub.description && <div style={{ fontSize:12, color:'#64748b', marginTop:2 }}>{sub.description}</div>}
                           <div style={{ display:'flex', gap:8, marginTop:8, flexWrap:'wrap' }}>
                             <span className="badge badge-blue">৳{sub.amount?.toLocaleString()}</span>
+                            {sub.allowCustomAmount && <span className="badge badge-green">Custom amount</span>}
                             <span className={`badge ${expired?'badge-red':'badge-yellow'}`}>Due: {sub.deadline}</span>
                             <span className={`badge ${sub.active?'badge-green':'badge-gray'}`}>{sub.active?'Active':'Inactive'}</span>
                           </div>
