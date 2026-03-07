@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, getDocs, onSnapshot, serverTimestamp, query, where } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
@@ -332,8 +332,9 @@ export default function Installment() {
                     const deadline = new Date(s.deadline);
                     const daysLeft = Math.ceil((deadline - new Date()) / (1000*60*60*24));
                     return (
-                      <button key={s.id} type="button" onClick={() => { setSelectedSpecial(sel ? null : s); setCustomSpecialAmount(''); }}
-                        style={{ padding:'14px 16px', borderRadius:10, textAlign:'left', cursor:'pointer', transition:'all 0.15s',
+                      <React.Fragment key={s.id}>
+                      <button type="button" onClick={() => { setSelectedSpecial(sel ? null : s); setCustomSpecialAmount(''); }}
+                        style={{ padding:'14px 16px', borderRadius:10, textAlign:'left', cursor:'pointer', transition:'all 0.15s', width:'100%',
                           border:     sel ? '2px solid #2563eb' : '1px solid #e2e8f0',
                           background: sel ? '#eff6ff' : '#fff' }}>
                         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8 }}>
@@ -375,6 +376,7 @@ export default function Installment() {
                           </div>
                         </div>
                       )}
+                      </React.Fragment>
                     );
                   })}
                 </div>
