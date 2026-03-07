@@ -18,6 +18,7 @@ export default function AdminReports() {
   const { userData, orgData, isOrgAdmin } = useAuth();
   const orgId   = userData?.activeOrgId;
   const currency = orgData?.currency || '৳';
+  const settings = orgData?.settings || {};
 
   const [loading, setLoading] = useState(true);
   const [members,   setMembers]   = useState([]);
@@ -81,8 +82,12 @@ export default function AdminReports() {
         return i.date.startsWith(selMonth);
       });
 
+  // When gatewayFeeInAccounting is ON, include gateway fees in the donation total
+  const feeInAccounting = !!settings.gatewayFeeInAccounting;
+  const donationNet = (p) => (p.amount||0) - (p.penaltyPaid||0) - (feeInAccounting ? 0 : (p.gatewayFee||0));
+
   // Summary numbers
-  const totalDonations = filteredPay.reduce((s,p) => s + ((p.amount||0)-(p.penaltyPaid||0)-(p.gatewayFee||0)), 0);
+  const totalDonations = filteredPay.reduce((s,p) => s + donationNet(p), 0);
   const totalPenalties  = filteredPay.reduce((s,p) => s + (p.penaltyPaid||0), 0);
   const totalExpenses   = filteredExp.reduce((s,e) => s + (e.amount||0), 0);
   const totalManual     = filteredInc.reduce((s,i) => s + (i.amount||0), 0);
@@ -95,7 +100,7 @@ export default function AdminReports() {
     return {
       ...m,
       paid:   myPay.length,
-      total:  myPay.reduce((s,p) => s + ((p.amount||0)-(p.penaltyPaid||0)-(p.gatewayFee||0)), 0),
+      total:  myPay.reduce((s,p) => s + donationNet(p), 0),
       penalty:myPay.reduce((s,p) => s + (p.penaltyPaid||0), 0),
     };
   }).sort((a,b) => b.total - a.total);
