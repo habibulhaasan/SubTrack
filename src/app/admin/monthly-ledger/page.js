@@ -197,7 +197,10 @@ export default function AdminLedger() {
   const penaltiesThisMonth = penalties.filter(p => p.month === selMonth);
 
   // ── Totals ───────────────────────────────────────────────────────────────────
-  const totalDonations = verifiedThisMonth.reduce((s,p) => s+((p.amount||0)-(p.penaltyPaid||0)-(p.gatewayFee||0)),0);
+  // When gatewayFeeInAccounting is ON, gateway fees count toward income (not deducted)
+  const feeInAccounting = !!settings.gatewayFeeInAccounting;
+  const donationNet = (p) => (p.amount||0) - (p.penaltyPaid||0) - (feeInAccounting ? 0 : (p.gatewayFee||0));
+  const totalDonations = verifiedThisMonth.reduce((s,p) => s + donationNet(p), 0);
   const totalPending   = pendingThisMonth.reduce((s,p) => s+(p.amount||0),0);
   const totalPenalties = penaltiesThisMonth.reduce((s,p) => s+(p.amount||0),0);
   const totalExpenses  = expensesThisMonth.reduce((s,e) => s+(e.amount||0),0);
@@ -216,7 +219,7 @@ export default function AdminLedger() {
           return [
             m.nameEnglish||p.userId, m.idNo||'—',
             (p.paidMonths||[]).join(', '),
-            fmt((p.amount||0)-(p.penaltyPaid||0)-(p.gatewayFee||0)),
+            fmt(donationNet(p)),
             p.penaltyPaid ? fmt(p.penaltyPaid) : '—',
             p.gatewayFee  ? fmt(p.gatewayFee)  : '—',
             p.verifiedAt ? new Date(p.verifiedAt.seconds*1000).toLocaleDateString('en-GB') : '—',
@@ -352,7 +355,7 @@ export default function AdminLedger() {
                   <tbody>
                     {verifiedThisMonth.map(p => {
                       const m = members[p.userId] || {};
-                      const base = (p.amount||0)-(p.penaltyPaid||0)-(p.gatewayFee||0);
+                      const base = donationNet(p);
                       return (
                         <tr key={p.id}>
                           <td>
